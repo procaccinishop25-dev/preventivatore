@@ -25,7 +25,7 @@ with st.form("nuovo_progetto"):
 
     submitted = st.form_submit_button("Salva Progetto")
 
-        if submitted:
+    if submitted:
         if not nome or not cognome_azienda:
             st.error("Nome e Cognome/Azienda sono obbligatori.")
         else:
