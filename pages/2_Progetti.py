@@ -1,11 +1,33 @@
 import streamlit as st
 from services.supabase import supabase
+import re
 
 
 def slug(testo):
-    import re
     testo = (testo or "").strip().replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
+
+
+@st.dialog("⚠️ Elimina progetto")
+def conferma_eliminazione(progetto_id, nome_completo):
+    st.warning(
+        f"Stai per eliminare definitivamente il progetto di **{nome_completo}**, "
+        f"con tutti i suoi infissi e le foto caricate. Questa azione non si può annullare."
+    )
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Sì, elimina", type="primary", use_container_width=True):
+            cartella_progetto = slug(nome_completo)
+            file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
+            if file_esistenti:
+                percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
+                supabase.storage.from_("foto").remove(percorsi)
+            supabase.table("progetti").delete().eq("id", progetto_id).execute()
+            st.success("Progetto eliminato.")
+            st.rerun()
+    with col2:
+        if st.button("Annulla", use_container_width=True):
+            st.rerun()
 
 
 st.set_page_config(page_title="I Miei Progetti", page_icon="📁")
@@ -42,21 +64,5 @@ else:
                     st.session_state["progetto_creato_nome"] = nome_completo
                     st.switch_page("pages/1_Nuovo_Progetto.py")
             with col3:
-                conferma_key = f"conferma_del_{p['id']}"
-                if st.session_state.get(conferma_key):
-                    if st.button("Conferma 🗑️", key=f"conferma_btn_{p['id']}", type="primary"):
-                        cartella_progetto = slug(nome_completo)
-                        file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
-                        if file_esistenti:
-                            percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
-                            supabase.storage.from_("foto").remove(percorsi)
-                        supabase.table("progetti").delete().eq("id", p['id']).execute()
-                        st.success("Progetto eliminato.")
-                        st.rerun()
-                    if st.button("Annulla", key=f"annulla_{p['id']}"):
-                        st.session_state[conferma_key] = False
-                        st.rerun()
-                else:
-                    if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
-                        st.session_state[conferma_key] = True
-                        st.rerun()
+                if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
+                    conferma_eliminazione(p['id'], nome_completo)
