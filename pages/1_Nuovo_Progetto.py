@@ -95,7 +95,7 @@ else:
         totale_mq = sum(i['mq'] * i['quantita'] for i in infissi.data)
         st.caption(f"Infissi inseriti: {len(infissi.data)} — Superficie totale: **{totale_mq:.2f} m²**")
 
-                for inf in infissi.data:
+        for inf in infissi.data:
             with st.expander(f"{inf['tipologia']} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m² — Qtà: {inf['quantita']}"):
                 col1, col2 = st.columns(2)
                 with col1:
