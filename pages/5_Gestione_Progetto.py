@@ -40,7 +40,6 @@ def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=250, caption="Schizzo attuale")
-        st.caption(f"[Apri il link diretto per verificare]({url_esistente})")
 
     strumento = st.radio(
         "Strumento",
