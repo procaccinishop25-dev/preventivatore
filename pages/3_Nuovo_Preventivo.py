@@ -140,7 +140,7 @@ else:
                     maggiorazioni_selezionate.append(m)
         else:
             st.caption("Nessuna maggiorazione predefinita configurata.")
-        st.page_link("pages/6_Maggiorazioni.py", label="⚙️ Gestisci maggiorazioni predefinite", icon="⚙️")
+        st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon="➕")
 
         st.divider()
         st.subheader("✏️ Maggiorazioni personalizzate")
