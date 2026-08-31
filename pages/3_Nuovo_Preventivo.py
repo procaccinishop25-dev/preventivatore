@@ -143,67 +143,6 @@ else:
         st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon="➕")
 
         st.divider()
-        st.subheader("✏️ Maggiorazioni personalizzate")
-
-        if "maggiorazioni_personalizzate" not in st.session_state:
-            st.session_state["maggiorazioni_personalizzate"] = []
-        if "mp_form_counter" not in st.session_state:
-            st.session_state["mp_form_counter"] = 0
-
-        contatore_mp = st.session_state["mp_form_counter"]
-
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            descr_personalizzata = st.text_input("Descrizione (es. Infisso particolare triplo)", key=f"descr_mp_{contatore_mp}")
-        with col2:
-            importo_personalizzato = st.number_input("Importo", min_value=0.0, step=1.0, key=f"importo_mp_{contatore_mp}")
-        with col3:
-            tipo_personalizzato = st.selectbox("Tipo", ["€ fisso", "€/m²", "%"], key=f"tipo_mp_{contatore_mp}")
-
-        applicazione = st.radio(
-            "Applicazione",
-            ["All'intero preventivo", "A un infisso specifico"],
-            horizontal=True,
-            key=f"appl_mp_{contatore_mp}"
-        )
-
-        infisso_scelto_id = None
-        nome_infisso_scelto = None
-        if applicazione == "A un infisso specifico":
-            opzioni_infissi = {
-                f"{inf.get('nome') or inf['tipologia']}": inf['id'] for inf in infissi.data
-            }
-            nome_infisso_scelto = st.selectbox("Seleziona infisso", list(opzioni_infissi.keys()), key=f"infisso_mp_{contatore_mp}")
-            infisso_scelto_id = opzioni_infissi[nome_infisso_scelto]
-
-        if st.button("➕ Aggiungi maggiorazione personalizzata", key=f"btn_add_mp_{contatore_mp}"):
-            if descr_personalizzata:
-                tipo_map = {"€ fisso": "fisso", "€/m²": "mq", "%": "percentuale"}
-                st.session_state["maggiorazioni_personalizzate"].append({
-                    "descrizione": descr_personalizzata,
-                    "importo": importo_personalizzato,
-                    "tipo": tipo_map[tipo_personalizzato],
-                    "infisso_id": infisso_scelto_id,
-                    "infisso_nome": nome_infisso_scelto
-                })
-                st.session_state["mp_form_counter"] += 1
-                st.rerun()
-            else:
-                st.warning("Inserisci una descrizione prima di aggiungere.")
-
-        if st.session_state["maggiorazioni_personalizzate"]:
-            for idx, mp in enumerate(st.session_state["maggiorazioni_personalizzate"]):
-                etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(mp['tipo'])
-                dettaglio_applicazione = f"su {mp['infisso_nome']}" if mp['infisso_id'] else "sull'intero preventivo"
-                col_desc, col_rimuovi = st.columns([5, 1])
-                with col_desc:
-                    st.write(f"• **{mp['descrizione']}** — {mp['importo']} {etichetta_tipo}, {dettaglio_applicazione}")
-                with col_rimuovi:
-                    if st.button("🗑️", key=f"rimuovi_mp_{idx}"):
-                        st.session_state["maggiorazioni_personalizzate"].pop(idx)
-                        st.rerun()
-
-        st.divider()
 
         totale_base = sum(prezzi_tipologia[t] * info["mq_totali"] for t, info in tipologie.items())
         mq_totale_progetto = sum(info["mq_totali"] for info in tipologie.values())
