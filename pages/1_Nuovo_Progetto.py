@@ -6,8 +6,23 @@ import re
 
 def slug(testo):
     """Rende una stringa sicura per essere usata come nome di cartella/file."""
-    testo = testo.strip().replace(" ", "_")
+    testo = (testo or "").strip().replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
+
+
+def carica_foto(file_obj, cartella, nome_infisso, infisso_id):
+    """Carica un file (da uploader o camera) su Storage e aggiorna l'infisso."""
+    nome_file = getattr(file_obj, "name", "foto.jpg")
+    tipo_file = getattr(file_obj, "type", "image/jpeg")
+    percorso = f"{cartella}/{slug(nome_infisso)}_{nome_file}"
+
+    supabase.storage.from_("foto").upload(
+        percorso,
+        file_obj.getvalue(),
+        {"content-type": tipo_file, "upsert": "true"}
+    )
+    url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
+    supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
 st.set_page_config(page_title="Nuovo Progetto", page_icon="📋")
@@ -80,16 +95,32 @@ else:
         mq_anteprima = (larghezza / 100) * (altezza / 100)
         st.caption(f"Superficie calcolata: **{mq_anteprima:.2f} m²** per pezzo")
 
+        st.write("📷 Foto (opzionale)")
+        metodo_foto = st.radio(
+            "Come vuoi aggiungere la foto?",
+            ["Nessuna", "Carica da file", "Scatta foto"],
+            horizontal=True,
+            key="metodo_foto_nuovo"
+        )
+        foto_input = None
+        if metodo_foto == "Carica da file":
+            foto_input = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key="foto_upload_nuovo")
+        elif metodo_foto == "Scatta foto":
+            foto_input = st.camera_input("Scatta una foto", key="foto_camera_nuovo")
+
         submitted_inf = st.form_submit_button("Aggiungi Infisso")
 
         if submitted_inf:
             esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
             numero_iniziale = len(esistenti.data) + 1
 
+            id_primo_infisso = None
+            nome_primo_infisso = None
+
             for i in range(int(quantita)):
                 numero = numero_iniziale + i
                 nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
-                supabase.table("infissi").insert({
+                nuovo = supabase.table("infissi").insert({
                     "progetto_id": progetto_id,
                     "tipologia": tipologia,
                     "numero_infisso": numero,
@@ -99,6 +130,16 @@ else:
                     "quantita": 1,
                     "note": note_inf
                 }).execute()
+
+                if i == 0:
+                    id_primo_infisso = nuovo.data[0]["id"]
+                    nome_primo_infisso = nome_infisso
+
+            if foto_input is not None and id_primo_infisso:
+                carica_foto(foto_input, cartella_progetto, nome_primo_infisso, id_primo_infisso)
+
+            if int(quantita) > 1 and foto_input is not None:
+                st.info(f"Foto associata solo a **{nome_primo_infisso}**. Per gli altri, apri il singolo infisso qui sotto e aggiungi la foto.")
 
             st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
             st.rerun()
@@ -143,18 +184,21 @@ else:
                 if inf.get('foto_url'):
                     st.image(inf['foto_url'], width=200)
 
-                foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
+                metodo_foto_inf = st.radio(
+                    "Come vuoi aggiungere/cambiare la foto?",
+                    ["Carica da file", "Scatta foto"],
+                    horizontal=True,
+                    key=f"metodo_foto_{inf['id']}"
+                )
+
+                if metodo_foto_inf == "Carica da file":
+                    foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
+                else:
+                    foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
 
                 if foto_caricata is not None:
                     if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
-                        percorso = f"{cartella_progetto}/{slug(nome_visualizzato)}_{foto_caricata.name}"
-                        supabase.storage.from_("foto").upload(
-                            percorso,
-                            foto_caricata.getvalue(),
-                            {"content-type": foto_caricata.type, "upsert": "true"}
-                        )
-                        url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
-                        supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", inf['id']).execute()
+                        carica_foto(foto_caricata, cartella_progetto, nome_visualizzato, inf['id'])
                         st.success("Foto caricata!")
                         st.rerun()
     else:
@@ -173,3 +217,19 @@ else:
             del st.session_state["progetto_creato_id"]
             del st.session_state["progetto_creato_nome"]
             st.rerun()
+
+    st.divider()
+
+    with st.expander("⚠️ Elimina questo progetto"):
+        st.warning("Questa azione eliminerà definitivamente il progetto, tutti i suoi infissi e le foto caricate. Non si può annullare.")
+        conferma = st.checkbox("Sì, sono sicuro di voler eliminare tutto", key="conferma_elimina_progetto")
+        if st.button("🗑️ Elimina definitivamente il progetto", disabled=not conferma):
+            file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
+            if file_esistenti:
+                percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
+                supabase.storage.from_("foto").remove(percorsi)
+            supabase.table("progetti").delete().eq("id", progetto_id).execute()
+            del st.session_state["progetto_creato_id"]
+            del st.session_state["progetto_creato_nome"]
+            st.success("Progetto eliminato.")
+            st.switch_page("pages/2_Progetti.py")
