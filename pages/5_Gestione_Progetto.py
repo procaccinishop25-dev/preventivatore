@@ -1,7 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
 from streamlit_drawable_canvas import st_canvas
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import io
 import re
 
@@ -22,8 +22,19 @@ def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infi
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
-def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
+def salva_schizzo(image_data, cartella, nome_file, tabella, record_id, testo=None, dimensione=20, pos_x=50, pos_y=50):
     img = Image.fromarray(image_data.astype("uint8"), "RGBA")
+
+    if testo:
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.load_default(size=dimensione)
+        except TypeError:
+            font = ImageFont.load_default()
+        x = int(img.width * pos_x / 100)
+        y = int(img.height * pos_y / 100)
+        draw.text((x, y), testo, fill="black", font=font)
+
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
@@ -76,9 +87,27 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
         key=f"canvas_{key_prefix}"
     )
 
+    st.write("📝 Aggiungi testo (opzionale)")
+    testo_da_aggiungere = st.text_input("Testo da scrivere sullo schizzo", key=f"testo_{key_prefix}")
+
+    col_dim, col_x, col_y = st.columns(3)
+    with col_dim:
+        dimensione_testo = st.slider("Dimensione testo", 10, 60, 20, key=f"dim_testo_{key_prefix}")
+    with col_x:
+        pos_x = st.slider("Posizione orizzontale (%)", 0, 100, 50, key=f"posx_testo_{key_prefix}")
+    with col_y:
+        pos_y = st.slider("Posizione verticale (%)", 0, 100, 50, key=f"posy_testo_{key_prefix}")
+
+    if testo_da_aggiungere:
+        st.caption("Il testo verrà scritto nella posizione indicata (0% = in alto a sinistra, 100% = in basso a destra) al momento del salvataggio.")
+
     if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
         if canvas_result.image_data is not None:
-            salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
+            salva_schizzo(
+                canvas_result.image_data, cartella, nome_file, tabella, record_id,
+                testo=testo_da_aggiungere if testo_da_aggiungere else None,
+                dimensione=dimensione_testo, pos_x=pos_x, pos_y=pos_y
+            )
             st.success("Schizzo salvato!")
             st.rerun()
         else:
@@ -109,7 +138,6 @@ else:
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
 
-    # --- Schizzo generale del progetto (checkbox invece di expander, per evitare il bug del canvas a larghezza 0) ---
     st.write("✏️ Schizzo generale del progetto (es. pianta del cantiere)")
     mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
     if mostra_schizzo_generale:
