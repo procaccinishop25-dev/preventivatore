@@ -1,10 +1,10 @@
 import streamlit as st
 from services.supabase import supabase
 from streamlit_drawable_canvas import st_canvas
-from streamlit_image_coordinates import streamlit_image_coordinates
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import io
 import re
+import uuid
 
 
 def slug(testo):
@@ -23,11 +23,41 @@ def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infi
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
-def carica_font(dimensione):
-    try:
-        return ImageFont.load_default(size=dimensione)
-    except TypeError:
-        return ImageFont.load_default()
+def elenco_foto_generali(cartella_progetto):
+    file_esistenti = supabase.storage.from_("foto").list(cartella_progetto) or []
+    generali = [f for f in file_esistenti if f["name"].startswith("generale_")]
+    risultato = []
+    for f in generali:
+        url = supabase.storage.from_("foto").get_public_url(f"{cartella_progetto}/{f['name']}")
+        risultato.append({"name": f["name"], "url": url})
+    return risultato
+
+
+def carica_foto_generale(bytes_data, tipo, nome_originale, cartella_progetto):
+    nome_unico = f"generale_{uuid.uuid4().hex[:8]}_{nome_originale}"
+    percorso = f"{cartella_progetto}/{nome_unico}"
+    supabase.storage.from_("foto").upload(
+        percorso, bytes_data, {"content-type": tipo, "upsert": "true"}
+    )
+
+
+def elimina_foto_generale(cartella_progetto, nome_file):
+    supabase.storage.from_("foto").remove([f"{cartella_progetto}/{nome_file}"])
+
+
+def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
+    img = Image.fromarray(image_data.astype("uint8"), "RGBA")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    percorso = f"{cartella}/{slug(nome_file)}.png"
+    supabase.storage.from_("schizzi").upload(
+        percorso,
+        buffer.getvalue(),
+        {"content-type": "image/png", "upsert": "true"}
+    )
+    url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
+    supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
 
 
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
@@ -57,85 +87,25 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     if strumento == "Linea dritta":
         st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
 
-    canvas_width, canvas_height = 500, 350
-
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        height=canvas_height,
-        width=canvas_width,
+        height=350,
+        width=500,
         drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
     )
 
-    if canvas_result.image_data is not None:
-        disegno_attuale = Image.fromarray(canvas_result.image_data.astype("uint8"), "RGBA")
-    else:
-        disegno_attuale = Image.new("RGBA", (canvas_width, canvas_height), "white")
-
-    chiave_testi = f"testi_schizzo_{key_prefix}"
-    chiave_ultimo_click = f"ultimo_click_{key_prefix}"
-    if chiave_testi not in st.session_state:
-        st.session_state[chiave_testi] = []
-    if chiave_ultimo_click not in st.session_state:
-        st.session_state[chiave_ultimo_click] = None
-
-    st.divider()
-    st.write("📝 Aggiungi testo: scrivilo qui sotto, poi **clicca sul disegno** nel punto dove vuoi posizionarlo")
-
-    col_testo, col_dim = st.columns([3, 1])
-    with col_testo:
-        testo_da_inserire = st.text_input("Testo da inserire", key=f"testo_input_{key_prefix}")
-    with col_dim:
-        dimensione_testo = st.slider("Dimensione", 10, 60, 20, key=f"dim_testo_{key_prefix}")
-
-    # Anteprima: disegno attuale + tutti i testi già posizionati
-    anteprima = disegno_attuale.copy()
-    draw = ImageDraw.Draw(anteprima)
-    for t in st.session_state[chiave_testi]:
-        draw.text((t["x"], t["y"]), t["testo"], fill="black", font=carica_font(t["dimensione"]))
-
-    click = streamlit_image_coordinates(anteprima, key=f"click_{key_prefix}")
-
-    if click is not None and click != st.session_state[chiave_ultimo_click]:
-        st.session_state[chiave_ultimo_click] = click
-        if testo_da_inserire:
-            st.session_state[chiave_testi].append({
-                "x": click["x"], "y": click["y"],
-                "testo": testo_da_inserire, "dimensione": dimensione_testo
-            })
+    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
+        if canvas_result.image_data is not None:
+            salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
+            st.success("Schizzo salvato!")
             st.rerun()
         else:
-            st.warning("Scrivi il testo prima di cliccare sul disegno.")
-
-    if st.session_state[chiave_testi]:
-        if st.button("🗑️ Rimuovi ultimo testo aggiunto", key=f"rimuovi_testo_{key_prefix}"):
-            st.session_state[chiave_testi].pop()
-            st.rerun()
-
-    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
-        finale = disegno_attuale.copy()
-        draw_finale = ImageDraw.Draw(finale)
-        for t in st.session_state[chiave_testi]:
-            draw_finale.text((t["x"], t["y"]), t["testo"], fill="black", font=carica_font(t["dimensione"]))
-
-        buffer = io.BytesIO()
-        finale.save(buffer, format="PNG")
-        buffer.seek(0)
-        percorso = f"{cartella}/{slug(nome_file)}.png"
-        supabase.storage.from_("schizzi").upload(
-            percorso, buffer.getvalue(), {"content-type": "image/png", "upsert": "true"}
-        )
-        url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
-        supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
-
-        st.session_state[chiave_testi] = []
-        st.session_state[chiave_ultimo_click] = None
-        st.success("Schizzo salvato!")
-        st.rerun()
+            st.warning("Disegna qualcosa prima di salvare.")
 
 
 st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
@@ -162,12 +132,112 @@ else:
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
 
+    # --- Schizzo generale del progetto ---
     st.write("✏️ Schizzo generale del progetto (es. pianta del cantiere)")
     mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
     if mostra_schizzo_generale:
         progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
         schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
         pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
+
+    st.divider()
+
+    # --- Foto generali del progetto ---
+    st.write("📷 Foto generali del progetto (es. schizzi su carta fotografati, foto d'insieme del cantiere)")
+    mostra_foto_generali = st.checkbox("Mostra/Aggiungi foto generali", key="mostra_foto_generali")
+    if mostra_foto_generali:
+        if "foto_generali_key_counter" not in st.session_state:
+            st.session_state["foto_generali_key_counter"] = 0
+        if "foto_generali_catturate" not in st.session_state:
+            st.session_state["foto_generali_catturate"] = []
+        if "camera_generali_shot_counter" not in st.session_state:
+            st.session_state["camera_generali_shot_counter"] = 0
+        if "fotocamera_generali_aperta" not in st.session_state:
+            st.session_state["fotocamera_generali_aperta"] = True
+
+        foto_esistenti = elenco_foto_generali(cartella_progetto)
+        if foto_esistenti:
+            st.caption(f"Foto già caricate: {len(foto_esistenti)}")
+            cols = st.columns(4)
+            for idx, foto in enumerate(foto_esistenti):
+                with cols[idx % 4]:
+                    st.image(foto["url"], width=140)
+                    if st.button("🗑️ Elimina", key=f"elimina_generale_{foto['name']}"):
+                        elimina_foto_generale(cartella_progetto, foto["name"])
+                        st.rerun()
+        else:
+            st.caption("Nessuna foto generale caricata ancora.")
+
+        st.divider()
+
+        contatore_g = st.session_state["foto_generali_key_counter"]
+        metodo_foto_generali = st.radio(
+            "Come vuoi aggiungere foto generali?",
+            ["Carica da file", "Scatta foto"],
+            horizontal=True,
+            key=f"metodo_foto_generali_{contatore_g}"
+        )
+
+        if metodo_foto_generali == "Carica da file":
+            nuove_foto_generali = st.file_uploader(
+                "Carica una o più foto",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"upload_generali_{contatore_g}"
+            ) or []
+            if nuove_foto_generali:
+                if st.button("⬆️ Carica queste foto", key=f"salva_upload_generali_{contatore_g}"):
+                    for f in nuove_foto_generali:
+                        carica_foto_generale(f.getvalue(), f.type, f.name, cartella_progetto)
+                    st.session_state["foto_generali_key_counter"] += 1
+                    st.success("Foto caricate!")
+                    st.rerun()
+
+        else:
+            st.caption(f"📸 Foto scattate finora: **{len(st.session_state['foto_generali_catturate'])}**")
+            if st.session_state["foto_generali_catturate"]:
+                cols_preview = st.columns(min(len(st.session_state["foto_generali_catturate"]), 6))
+                for idx, foto in enumerate(st.session_state["foto_generali_catturate"]):
+                    with cols_preview[idx % len(cols_preview)]:
+                        st.image(foto["bytes"], width=80)
+
+            if st.session_state["fotocamera_generali_aperta"]:
+                scatto_g = st.camera_input("Scatta una foto", key=f"cam_generali_{st.session_state['camera_generali_shot_counter']}")
+                col_agg_g, col_chiudi_g = st.columns(2)
+                with col_agg_g:
+                    if scatto_g is not None:
+                        if st.button("➕ Aggiungi alla lista", key=f"aggiungi_cam_generali_{contatore_g}"):
+                            st.session_state["foto_generali_catturate"].append({
+                                "bytes": scatto_g.getvalue(), "type": scatto_g.type, "name": scatto_g.name
+                            })
+                            st.session_state["camera_generali_shot_counter"] += 1
+                            st.rerun()
+                with col_chiudi_g:
+                    if st.button("✅ Ho finito, chiudi fotocamera", key=f"chiudi_cam_generali_{contatore_g}"):
+                        st.session_state["fotocamera_generali_aperta"] = False
+                        st.rerun()
+            else:
+                st.info("Fotocamera chiusa.")
+                col_riapri_g, col_svuota_g = st.columns(2)
+                with col_riapri_g:
+                    if st.button("📷 Riapri fotocamera", key=f"riapri_cam_generali_{contatore_g}"):
+                        st.session_state["fotocamera_generali_aperta"] = True
+                        st.rerun()
+                with col_svuota_g:
+                    if st.session_state["foto_generali_catturate"]:
+                        if st.button("🗑️ Svuota foto scattate", key=f"svuota_cam_generali_{contatore_g}"):
+                            st.session_state["foto_generali_catturate"] = []
+                            st.rerun()
+
+            if st.session_state["foto_generali_catturate"]:
+                if st.button("⬆️ Carica le foto scattate", key=f"carica_scattate_generali_{contatore_g}"):
+                    for foto in st.session_state["foto_generali_catturate"]:
+                        carica_foto_generale(foto["bytes"], foto["type"], foto["name"], cartella_progetto)
+                    st.session_state["foto_generali_catturate"] = []
+                    st.session_state["foto_generali_key_counter"] += 1
+                    st.session_state["fotocamera_generali_aperta"] = True
+                    st.success("Foto caricate!")
+                    st.rerun()
 
     st.divider()
     st.subheader("Aggiungi infissi")
