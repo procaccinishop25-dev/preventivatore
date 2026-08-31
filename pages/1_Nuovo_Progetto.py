@@ -120,3 +120,40 @@ else:
                     if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}"):
                         supabase.table("infissi").delete().eq("id", inf['id']).execute()
                         st.rerun()
+
+                st.divider()
+                st.write("📷 Foto")
+
+                if inf.get('foto_url'):
+                    st.image(inf['foto_url'], width=200)
+
+                foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
+
+                if foto_caricata is not None:
+                    if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
+                        percorso = f"{progetto_id}/{inf['id']}_{foto_caricata.name}"
+                        supabase.storage.from_("foto").upload(
+                            percorso,
+                            foto_caricata.getvalue(),
+                            {"content-type": foto_caricata.type, "upsert": "true"}
+                        )
+                        url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
+                        supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", inf['id']).execute()
+                        st.success("Foto caricata!")
+                        st.rerun()
+    else:
+        st.info("Nessun infisso ancora inserito.")
+
+    st.divider()
+
+    col_fine, col_nuovo = st.columns(2)
+    with col_fine:
+        if st.button("✅ Ho finito, vai a I Miei Progetti"):
+            del st.session_state["progetto_creato_id"]
+            del st.session_state["progetto_creato_nome"]
+            st.switch_page("pages/2_Progetti.py")
+    with col_nuovo:
+        if st.button("➕ Crea un altro progetto"):
+            del st.session_state["progetto_creato_id"]
+            del st.session_state["progetto_creato_nome"]
+            st.rerun()
