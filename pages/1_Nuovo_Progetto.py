@@ -95,27 +95,28 @@ else:
         totale_mq = sum(i['mq'] * i['quantita'] for i in infissi.data)
         st.caption(f"Infissi inseriti: {len(infissi.data)} — Superficie totale: **{totale_mq:.2f} m²**")
 
-        for inf in infissi.data:
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.write(f"**{inf['tipologia']}** — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m² — Qtà: {inf['quantita']}")
-            with col2:
-                if st.button("Elimina", key=f"del_{inf['id']}"):
-                    supabase.table("infissi").delete().eq("id", inf['id']).execute()
-                    st.rerun()
-    else:
-        st.info("Nessun infisso ancora inserito.")
+                for inf in infissi.data:
+            with st.expander(f"{inf['tipologia']} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m² — Qtà: {inf['quantita']}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
+                    nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
+                with col2:
+                    nuova_quantita = st.number_input("Quantità", value=int(inf['quantita']), min_value=1, key=f"qta_{inf['id']}")
+                    nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}")
 
-    st.divider()
-
-    col_fine, col_nuovo = st.columns(2)
-    with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti"):
-            del st.session_state["progetto_creato_id"]
-            del st.session_state["progetto_creato_nome"]
-            st.switch_page("pages/2_Progetti.py")
-    with col_nuovo:
-        if st.button("➕ Crea un altro progetto"):
-            del st.session_state["progetto_creato_id"]
-            del st.session_state["progetto_creato_nome"]
-            st.rerun()
+                col_salva, col_elimina = st.columns(2)
+                with col_salva:
+                    if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}"):
+                        supabase.table("infissi").update({
+                            "larghezza_cm": nuova_larghezza,
+                            "altezza_cm": nuova_altezza,
+                            "quantita": nuova_quantita,
+                            "note": nuove_note
+                        }).eq("id", inf['id']).execute()
+                        st.success("Modificato!")
+                        st.rerun()
+                with col_elimina:
+                    if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}"):
+                        supabase.table("infissi").delete().eq("id", inf['id']).execute()
+                        st.rerun()
