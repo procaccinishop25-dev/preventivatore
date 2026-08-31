@@ -29,6 +29,16 @@ st.set_page_config(page_title="Nuovo Progetto", page_icon="📋")
 
 st.title("📋 Nuovo Progetto")
 
+if "progetto_creato_id" in st.session_state:
+    col_avviso, col_reset = st.columns([3, 1])
+    with col_avviso:
+        st.info(f"Stai continuando il progetto: **{st.session_state['progetto_creato_nome']}**")
+    with col_reset:
+        if st.button("🆕 Nuovo progetto vuoto"):
+            del st.session_state["progetto_creato_id"]
+            del st.session_state["progetto_creato_nome"]
+            st.rerun()
+
 if "progetto_creato_id" not in st.session_state:
 
     with st.form("nuovo_progetto", clear_on_submit=True):
