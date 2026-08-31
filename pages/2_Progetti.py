@@ -18,12 +18,26 @@ def conferma_eliminazione(progetto_id, nome_completo):
     with col1:
         if st.button("🗑️ Sì, elimina", type="primary", use_container_width=True):
             cartella_progetto = slug(nome_completo)
+
+            # 1. Elimina le foto dallo Storage
             file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
             if file_esistenti:
                 percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
                 supabase.storage.from_("foto").remove(percorsi)
+
+            # 2. Elimina esplicitamente gli infissi collegati (non solo affidarsi alla cascata del DB)
+            supabase.table("infissi").delete().eq("progetto_id", progetto_id).execute()
+
+            # 3. Elimina eventuali preventivi collegati (per quando saranno attivi)
+            preventivi_collegati = supabase.table("preventivi").select("id").eq("progetto_id", progetto_id).execute()
+            for prev in preventivi_collegati.data:
+                supabase.table("preventivo_maggiorazioni").delete().eq("preventivo_id", prev["id"]).execute()
+            supabase.table("preventivi").delete().eq("progetto_id", progetto_id).execute()
+
+            # 4. Infine elimina il progetto stesso
             supabase.table("progetti").delete().eq("id", progetto_id).execute()
-            st.success("Progetto eliminato.")
+
+            st.success("Progetto eliminato completamente.")
             st.rerun()
     with col2:
         if st.button("Annulla", use_container_width=True):
