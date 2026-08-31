@@ -27,16 +27,38 @@ def genera_excel_preventivo(
     righe_riepilogo_excel,
     mq_totale_progetto
 ):
+    """
+    Genera il file Excel del preventivo.
+
+    Crea due fogli:
+    - Riepilogo
+    - Dati progetto
+    """
+
     buffer = io.BytesIO()
 
-    with pd.ExcelWriter(buffer, engine="openpyxl"):
+    # IMPORTANTE:
+    # "as writer" è necessario per poter scrivere correttamente
+    # i fogli Excel.
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
 
-        df_riepilogo = pd.DataFrame(righe_riepilogo_excel)
+        # ----------------------------------------------------
+        # FOGLIO RIEPILOGO
+        # ----------------------------------------------------
+
+        df_riepilogo = pd.DataFrame(
+            righe_riepilogo_excel
+        )
+
         df_riepilogo.to_excel(
             writer,
             sheet_name="Riepilogo",
             index=False
         )
+
+        # ----------------------------------------------------
+        # FOGLIO DATI PROGETTO
+        # ----------------------------------------------------
 
         df_intestazione = pd.DataFrame([
             {
@@ -49,7 +71,10 @@ def genera_excel_preventivo(
             },
             {
                 "Campo": "Superficie totale (m²)",
-                "Valore": round(mq_totale_progetto, 2)
+                "Valore": round(
+                    mq_totale_progetto,
+                    2
+                )
             },
         ])
 
@@ -59,13 +84,17 @@ def genera_excel_preventivo(
             index=False
         )
 
+    # Torna all'inizio del file Excel
     buffer.seek(0)
+
     return buffer
 
 
 @st.dialog("Applica maggiorazione")
-def dialog_applicazione_maggiorazione(m, lista_infissi):
-
+def dialog_applicazione_maggiorazione(
+    m,
+    lista_infissi
+):
     st.write(
         f"Vuoi applicare **{m['descrizione']}** "
         f"a tutti gli infissi o solo a uno specifico?"
@@ -103,13 +132,19 @@ def dialog_applicazione_maggiorazione(m, lista_infissi):
         "Conferma",
         key=f"dialog_conferma_{m['id']}"
     ):
-        st.session_state["magg_applicazione"][m["id"]] = {
+        st.session_state[
+            "magg_applicazione"
+        ][m["id"]] = {
             "infisso_id": infisso_id,
             "infisso_nome": infisso_nome
         }
 
         st.rerun()
 
+
+# ============================================================
+# CONFIGURAZIONE PAGINA
+# ============================================================
 
 st.set_page_config(
     page_title="Nuovo Preventivo",
@@ -120,14 +155,15 @@ st.title("💰 Nuovo Preventivo")
 
 
 # ============================================================
-# PROGETTI
+# CARICAMENTO PROGETTI
 # ============================================================
 
 progetti = (
     supabase
     .table("progetti")
     .select(
-        "id, indirizzo, citta, clienti(nome, cognome_azienda)"
+        "id, indirizzo, citta, "
+        "clienti(nome, cognome_azienda)"
     )
     .execute()
 )
@@ -144,6 +180,10 @@ if not progetti.data:
     )
 
 else:
+
+    # ========================================================
+    # SELEZIONE PROGETTO
+    # ========================================================
 
     opzioni = {
         f"{p['clienti']['nome']} "
@@ -172,7 +212,7 @@ else:
 
 
     # ========================================================
-    # INFISSI
+    # CARICAMENTO INFISSI
     # ========================================================
 
     infissi = (
@@ -201,7 +241,7 @@ else:
     else:
 
         # ====================================================
-        # RAGGRUPPAMENTO TIPOLOGIE
+        # RAGGRUPPAMENTO PER TIPOLOGIA
         # ====================================================
 
         tipologie = {}
@@ -222,14 +262,18 @@ else:
                 inf["mq"] * inf["quantita"]
             )
 
-            tipologie[t]["count"] += inf["quantita"]
+            tipologie[t]["count"] += (
+                inf["quantita"]
+            )
 
 
         # ====================================================
         # PREZZO BASE PER TIPOLOGIA
         # ====================================================
 
-        st.subheader("💶 Prezzo base per tipologia")
+        st.subheader(
+            "💶 Prezzo base per tipologia"
+        )
 
         prezzi_tipologia = {}
 
@@ -238,10 +282,13 @@ else:
             prezzi_tipologia[t] = st.number_input(
                 f"{t} — "
                 f"{info['count']} pezzi, "
-                f"{info['mq_totali']:.2f} m² totali (€/m²)",
+                f"{info['mq_totali']:.2f} m² "
+                f"totali (€/m²)",
+
                 min_value=0.0,
                 value=400.0,
                 step=10.0,
+
                 key=f"prezzo_{t}"
             )
 
@@ -253,13 +300,23 @@ else:
         # MAGGIORAZIONI PREDEFINITE
         # ====================================================
 
-        st.subheader("➕ Maggiorazioni predefinite")
+        st.subheader(
+            "➕ Maggiorazioni predefinite"
+        )
+
 
         if "magg_applicazione" not in st.session_state:
-            st.session_state["magg_applicazione"] = {}
+
+            st.session_state[
+                "magg_applicazione"
+            ] = {}
+
 
         if "magg_prev_stato" not in st.session_state:
-            st.session_state["magg_prev_stato"] = {}
+
+            st.session_state[
+                "magg_prev_stato"
+            ] = {}
 
 
         maggiorazioni_disponibili = (
@@ -289,8 +346,9 @@ else:
 
 
                 stato_precedente = (
-                    st.session_state["magg_prev_stato"]
-                    .get(
+                    st.session_state[
+                        "magg_prev_stato"
+                    ].get(
                         m["id"],
                         False
                     )
@@ -299,7 +357,9 @@ else:
 
                 selezionata = st.checkbox(
                     f"{m['descrizione']} "
-                    f"(+{m['importo']} {etichetta_tipo})",
+                    f"(+{m['importo']} "
+                    f"{etichetta_tipo})",
+
                     key=f"magg_{m['id']}"
                 )
 
@@ -310,10 +370,13 @@ else:
                 )
 
 
-                st.session_state["magg_prev_stato"][
-                    m["id"]
-                ] = selezionata
+                st.session_state[
+                    "magg_prev_stato"
+                ][m["id"]] = selezionata
 
+
+                # Se viene deselezionata,
+                # eliminiamo anche l'applicazione salvata.
 
                 if not selezionata:
 
@@ -324,6 +387,9 @@ else:
                         None
                     )
 
+
+                # Alla prima selezione
+                # apriamo il dialog.
 
                 if appena_selezionata:
 
@@ -353,7 +419,9 @@ else:
 
                         if (
                             info_appl
-                            and info_appl.get("infisso_id")
+                            and info_appl.get(
+                                "infisso_id"
+                            )
                         ):
 
                             st.caption(
@@ -364,7 +432,8 @@ else:
                         else:
 
                             st.caption(
-                                "↳ applicata su tutti gli infissi"
+                                "↳ applicata su "
+                                "tutti gli infissi"
                             )
 
 
@@ -386,7 +455,8 @@ else:
         else:
 
             st.caption(
-                "Nessuna maggiorazione predefinita configurata."
+                "Nessuna maggiorazione predefinita "
+                "configurata."
             )
 
 
@@ -398,10 +468,11 @@ else:
 
 
         # ====================================================
-        # CALCOLO PREVENTIVO
+        # CALCOLO TOTALE BASE
         # ====================================================
 
         st.divider()
+
 
         totale_base = sum(
             prezzi_tipologia[t]
@@ -435,11 +506,15 @@ else:
 
             righe_riepilogo.append({
                 "voce": t,
+
                 "calcolo": (
-                    f"{format_num(info['mq_totali'])} m² × "
+                    f"{format_num(info['mq_totali'])} "
+                    f"m² × "
                     f"{format_num(prezzo)} €/m²"
                 ),
+
                 "totale": subtotale,
+
                 "bold": False
             })
 
@@ -457,7 +532,7 @@ else:
 
 
         # ====================================================
-        # MAGGIORAZIONI PREDEFINITE
+        # CALCOLO MAGGIORAZIONI PREDEFINITE
         # ====================================================
 
         totale_maggiorazioni = 0.0
@@ -479,6 +554,10 @@ else:
                 "infisso_id"
             )
 
+
+            # ------------------------------------------------
+            # MAGGIORAZIONE SU UN SOLO INFISSO
+            # ------------------------------------------------
 
             if infisso_id_appl:
 
@@ -512,6 +591,11 @@ else:
                     "infisso_nome"
                 )
 
+
+            # ------------------------------------------------
+            # MAGGIORAZIONE SU TUTTI GLI INFISSI
+            # ------------------------------------------------
+
             else:
 
                 base_mq = mq_totale_progetto
@@ -521,9 +605,9 @@ else:
                 riferimento = "tutti gli infissi"
 
 
-            # ----------------------------------------------
-            # MAGGIORAZIONE AL MQ
-            # ----------------------------------------------
+            # ------------------------------------------------
+            # MAGGIORAZIONE €/M²
+            # ------------------------------------------------
 
             if m["tipo"] == "mq":
 
@@ -532,6 +616,7 @@ else:
                     * base_mq
                 )
 
+
                 calcolo_str = (
                     f"{format_num(base_mq)} m² "
                     f"({riferimento}) × "
@@ -539,22 +624,23 @@ else:
                 )
 
 
-            # ----------------------------------------------
+            # ------------------------------------------------
             # MAGGIORAZIONE FISSA
-            # ----------------------------------------------
+            # ------------------------------------------------
 
             elif m["tipo"] == "fisso":
 
                 importo_calc = m["importo"]
 
                 calcolo_str = (
-                    f"Importo fisso ({riferimento})"
+                    f"Importo fisso "
+                    f"({riferimento})"
                 )
 
 
-            # ----------------------------------------------
+            # ------------------------------------------------
             # MAGGIORAZIONE PERCENTUALE
-            # ----------------------------------------------
+            # ------------------------------------------------
 
             elif m["tipo"] == "percentuale":
 
@@ -563,8 +649,10 @@ else:
                     * (m["importo"] / 100)
                 )
 
+
                 calcolo_str = (
-                    f"{format_num(m['importo'])}% su "
+                    f"{format_num(m['importo'])}% "
+                    f"su "
                     f"{format_euro(base_valore)} "
                     f"({riferimento})"
                 )
@@ -619,7 +707,7 @@ else:
 
 
         # ====================================================
-        # RIEPILOGO
+        # RIEPILOGO A VIDEO
         # ====================================================
 
         st.subheader(
@@ -662,7 +750,7 @@ else:
 
 
         # ====================================================
-        # EXCEL
+        # GENERAZIONE EXCEL
         # ====================================================
 
         st.divider()
@@ -692,11 +780,14 @@ else:
 
         st.download_button(
             "📥 Scarica riepilogo Excel",
+
             data=excel_buffer,
+
             file_name=(
                 f"preventivo_"
                 f"{slug(nome_cliente_progetto)}.xlsx"
             ),
+
             mime=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
@@ -728,9 +819,9 @@ else:
             )
 
 
-            # ----------------------------------------------
+            # ------------------------------------------------
             # SALVA PREZZI PER TIPOLOGIA
-            # ----------------------------------------------
+            # ------------------------------------------------
 
             for t, prezzo in prezzi_tipologia.items():
 
@@ -748,9 +839,9 @@ else:
                 )
 
 
-            # ----------------------------------------------
+            # ------------------------------------------------
             # SALVA MAGGIORAZIONI PREDEFINITE
-            # ----------------------------------------------
+            # ------------------------------------------------
 
             for m in maggiorazioni_selezionate:
 
@@ -780,9 +871,9 @@ else:
                 )
 
 
-            # ----------------------------------------------
-            # RESET STATO
-            # ----------------------------------------------
+            # ------------------------------------------------
+            # RESET SESSIONE
+            # ------------------------------------------------
 
             st.session_state[
                 "magg_applicazione"
@@ -793,6 +884,10 @@ else:
                 "magg_prev_stato"
             ] = {}
 
+
+            # ------------------------------------------------
+            # CONFERMA
+            # ------------------------------------------------
 
             st.success(
                 "Preventivo salvato! "
