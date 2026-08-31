@@ -9,10 +9,10 @@ def slug(testo):
 
 
 @st.dialog("⚠️ Elimina progetto")
-def conferma_eliminazione(progetto_id, nome_completo):
+def conferma_eliminazione(progetto_id, cliente_id, nome_completo):
     st.warning(
         f"Stai per eliminare definitivamente il progetto di **{nome_completo}**, "
-        f"con tutti i suoi infissi e le foto caricate. Questa azione non si può annullare."
+        f"con tutti i suoi infissi, foto e i dati del cliente. Questa azione non si può annullare."
     )
     col1, col2 = st.columns(2)
     with col1:
@@ -25,17 +25,21 @@ def conferma_eliminazione(progetto_id, nome_completo):
                 percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
                 supabase.storage.from_("foto").remove(percorsi)
 
-            # 2. Elimina esplicitamente gli infissi collegati (non solo affidarsi alla cascata del DB)
+            # 2. Elimina esplicitamente gli infissi collegati
             supabase.table("infissi").delete().eq("progetto_id", progetto_id).execute()
 
-            # 3. Elimina eventuali preventivi collegati (per quando saranno attivi)
+            # 3. Elimina eventuali preventivi collegati
             preventivi_collegati = supabase.table("preventivi").select("id").eq("progetto_id", progetto_id).execute()
             for prev in preventivi_collegati.data:
                 supabase.table("preventivo_maggiorazioni").delete().eq("preventivo_id", prev["id"]).execute()
             supabase.table("preventivi").delete().eq("progetto_id", progetto_id).execute()
 
-            # 4. Infine elimina il progetto stesso
+            # 4. Elimina il progetto
             supabase.table("progetti").delete().eq("id", progetto_id).execute()
+
+            # 5. Elimina il cliente collegato (creato apposta per questo progetto)
+            if cliente_id:
+                supabase.table("clienti").delete().eq("id", cliente_id).execute()
 
             st.success("Progetto eliminato completamente.")
             st.rerun()
@@ -79,4 +83,4 @@ else:
                     st.switch_page("pages/5_Gestione_Progetto.py")
             with col3:
                 if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
-                    conferma_eliminazione(p['id'], nome_completo)
+                    conferma_eliminazione(p['id'], p['cliente_id'], nome_completo)
