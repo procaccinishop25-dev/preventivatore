@@ -10,24 +10,28 @@ def slug(testo):
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
 
 
-def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_infissi, righe_maggiorazioni, totale_base, totale_maggiorazioni, totale_finale, mq_totale_progetto):
+def format_num(x, decimali=2):
+    return f"{x:.{decimali}f}".replace(".", ",")
+
+
+def format_euro(x):
+    s = f"{x:,.2f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{s} €"
+
+
+def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_riepilogo_excel, totale_base, totale_maggiorazioni, totale_finale, mq_totale_progetto):
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_infissi = pd.DataFrame(righe_infissi)
-        df_infissi.to_excel(writer, sheet_name='Dettaglio Infissi', index=False)
-
-        righe_riepilogo = [
-            {"Voce": "Cliente", "Valore": nome_cliente},
-            {"Voce": "Indirizzo", "Valore": f"{indirizzo}, {citta}"},
-            {"Voce": "Superficie totale (m²)", "Valore": round(mq_totale_progetto, 2)},
-            {"Voce": "Totale base (€)", "Valore": round(totale_base, 2)},
-        ]
-        for r in righe_maggiorazioni:
-            righe_riepilogo.append({"Voce": f"Maggiorazione: {r['Maggiorazione']}", "Valore": r['Importo €']})
-        righe_riepilogo.append({"Voce": "Totale maggiorazioni (€)", "Valore": round(totale_maggiorazioni, 2)})
-        righe_riepilogo.append({"Voce": "TOTALE FINALE (€)", "Valore": round(totale_finale, 2)})
-        df_riepilogo = pd.DataFrame(righe_riepilogo)
+        df_riepilogo = pd.DataFrame(righe_riepilogo_excel)
         df_riepilogo.to_excel(writer, sheet_name='Riepilogo', index=False)
+
+        df_intestazione = pd.DataFrame([
+            {"Campo": "Cliente", "Valore": nome_cliente},
+            {"Campo": "Indirizzo", "Valore": f"{indirizzo}, {citta}"},
+            {"Campo": "Superficie totale (m²)", "Valore": round(mq_totale_progetto, 2)},
+        ])
+        df_intestazione.to_excel(writer, sheet_name='Dati progetto', index=False)
 
     buffer.seek(0)
     return buffer
@@ -74,7 +78,7 @@ else:
             )
 
         st.divider()
-        st.subheader("➕ Maggiorazioni")
+        st.subheader("➕ Maggiorazioni predefinite")
         maggiorazioni_disponibili = supabase.table("maggiorazioni").select("*").execute()
 
         maggiorazioni_selezionate = []
@@ -88,59 +92,159 @@ else:
             st.caption("Nessuna maggiorazione predefinita configurata.")
 
         st.divider()
+        st.subheader("✏️ Maggiorazioni personalizzate")
+
+        if "maggiorazioni_personalizzate" not in st.session_state:
+            st.session_state["maggiorazioni_personalizzate"] = []
+
+        with st.form("nuova_maggiorazione_personalizzata", clear_on_submit=True):
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                descr_personalizzata = st.text_input("Descrizione (es. Infisso particolare triplo)")
+            with col2:
+                importo_personalizzato = st.number_input("Importo", min_value=0.0, step=1.0)
+            with col3:
+                tipo_personalizzato = st.selectbox("Tipo", ["€ fisso", "€/m²", "%"])
+
+            applicazione = st.radio("Applicazione", ["All'intero preventivo", "A un infisso specifico"], horizontal=True)
+
+            infisso_scelto_id = None
+            nome_infisso_scelto = None
+            if applicazione == "A un infisso specifico":
+                opzioni_infissi = {
+                    f"{inf.get('nome') or inf['tipologia']}": inf['id'] for inf in infissi.data
+                }
+                nome_infisso_scelto = st.selectbox("Seleziona infisso", list(opzioni_infissi.keys()))
+                infisso_scelto_id = opzioni_infissi[nome_infisso_scelto]
+
+            aggiungi = st.form_submit_button("➕ Aggiungi maggiorazione personalizzata")
+
+            if aggiungi and descr_personalizzata:
+                tipo_map = {"€ fisso": "fisso", "€/m²": "mq", "%": "percentuale"}
+                st.session_state["maggiorazioni_personalizzate"].append({
+                    "descrizione": descr_personalizzata,
+                    "importo": importo_personalizzato,
+                    "tipo": tipo_map[tipo_personalizzato],
+                    "applicazione": applicazione,
+                    "infisso_id": infisso_scelto_id,
+                    "infisso_nome": nome_infisso_scelto
+                })
+                st.rerun()
+
+        if st.session_state["maggiorazioni_personalizzate"]:
+            for idx, mp in enumerate(st.session_state["maggiorazioni_personalizzate"]):
+                etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(mp['tipo'])
+                dettaglio_applicazione = f"su {mp['infisso_nome']}" if mp['infisso_id'] else "sull'intero preventivo"
+                col_desc, col_rimuovi = st.columns([5, 1])
+                with col_desc:
+                    st.write(f"• **{mp['descrizione']}** — {mp['importo']} {etichetta_tipo}, {dettaglio_applicazione}")
+                with col_rimuovi:
+                    if st.button("🗑️", key=f"rimuovi_mp_{idx}"):
+                        st.session_state["maggiorazioni_personalizzate"].pop(idx)
+                        st.rerun()
+
+        st.divider()
 
         totale_base = sum(prezzi_tipologia[t] * info["mq_totali"] for t, info in tipologie.items())
         mq_totale_progetto = sum(info["mq_totali"] for info in tipologie.values())
 
-        righe_maggiorazioni = []
+        # --- Costruzione righe del riepilogo con formula di calcolo ---
+        righe_riepilogo = []
+
+        for t, info in tipologie.items():
+            prezzo = prezzi_tipologia[t]
+            subtotale = info["mq_totali"] * prezzo
+            righe_riepilogo.append({
+                "voce": t,
+                "calcolo": f"{format_num(info['mq_totali'])} m² × {format_num(prezzo)} €/m²",
+                "totale": subtotale,
+                "bold": False
+            })
+
+        righe_riepilogo.append({
+            "voce": "Totale base", "calcolo": "", "totale": totale_base, "bold": True
+        })
+
         totale_maggiorazioni = 0.0
+
         for m in maggiorazioni_selezionate:
             if m['tipo'] == 'mq':
                 importo_calc = m['importo'] * mq_totale_progetto
+                calcolo_str = f"{format_num(mq_totale_progetto)} m² totali × {format_num(m['importo'])} €/m²"
             elif m['tipo'] == 'fisso':
                 importo_calc = m['importo']
+                calcolo_str = "Importo fisso"
             elif m['tipo'] == 'percentuale':
                 importo_calc = totale_base * (m['importo'] / 100)
+                calcolo_str = f"{format_num(m['importo'])}% su {format_euro(totale_base)}"
             else:
                 importo_calc = 0
+                calcolo_str = ""
             totale_maggiorazioni += importo_calc
-            righe_maggiorazioni.append({"Maggiorazione": m['descrizione'], "Importo €": round(importo_calc, 2)})
+            righe_riepilogo.append({
+                "voce": m['descrizione'], "calcolo": calcolo_str, "totale": importo_calc, "bold": False
+            })
+
+        for mp in st.session_state["maggiorazioni_personalizzate"]:
+            if mp['infisso_id']:
+                infisso_rif = next((i for i in infissi.data if i['id'] == mp['infisso_id']), None)
+                base_calcolo_mq = (infisso_rif['mq'] * infisso_rif['quantita']) if infisso_rif else 0
+                base_calcolo_valore = (infisso_rif['mq'] * infisso_rif['quantita'] * prezzi_tipologia.get(infisso_rif['tipologia'], 0)) if infisso_rif else 0
+                nome_riferimento = mp['infisso_nome']
+            else:
+                base_calcolo_mq = mq_totale_progetto
+                base_calcolo_valore = totale_base
+                nome_riferimento = "intero preventivo"
+
+            if mp['tipo'] == 'mq':
+                importo_calc = mp['importo'] * base_calcolo_mq
+                calcolo_str = f"{format_num(base_calcolo_mq)} m² ({nome_riferimento}) × {format_num(mp['importo'])} €/m²"
+            elif mp['tipo'] == 'fisso':
+                importo_calc = mp['importo']
+                calcolo_str = f"Importo fisso ({nome_riferimento})"
+            elif mp['tipo'] == 'percentuale':
+                importo_calc = base_calcolo_valore * (mp['importo'] / 100)
+                calcolo_str = f"{format_num(mp['importo'])}% su {format_euro(base_calcolo_valore)} ({nome_riferimento})"
+            else:
+                importo_calc = 0
+                calcolo_str = ""
+
+            totale_maggiorazioni += importo_calc
+            righe_riepilogo.append({
+                "voce": mp['descrizione'], "calcolo": calcolo_str, "totale": importo_calc, "bold": False
+            })
+
+        righe_riepilogo.append({
+            "voce": "Maggiorazioni", "calcolo": "", "totale": totale_maggiorazioni, "bold": True
+        })
 
         totale_finale = totale_base + totale_maggiorazioni
 
-        st.subheader("📊 Riepilogo")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Totale base", f"{totale_base:.2f} €")
-        col2.metric("Maggiorazioni", f"{totale_maggiorazioni:.2f} €")
-        col3.metric("Totale finale", f"{totale_finale:.2f} €")
+        righe_riepilogo.append({
+            "voce": "Totale finale", "calcolo": "", "totale": totale_finale, "bold": True
+        })
+
+        # --- Rendering della tabella markdown ---
+        st.subheader("📊 Riepilogo — calcolo automatico")
+
+        righe_md = ["| Voce | Calcolo | Totale |", "|---|---|---|"]
+        for r in righe_riepilogo:
+            voce = f"**{r['voce']}**" if r['bold'] else r['voce']
+            totale_fmt = f"**{format_euro(r['totale'])}**" if r['bold'] else format_euro(r['totale'])
+            righe_md.append(f"| {voce} | {r['calcolo']} | {totale_fmt} |")
+
+        st.markdown("\n".join(righe_md))
 
         st.divider()
-        st.subheader("📋 Dettaglio infissi")
 
-        righe_infissi = []
-        for inf in infissi.data:
-            prezzo = prezzi_tipologia.get(inf['tipologia'], 0)
-            subtotale = inf['mq'] * inf['quantita'] * prezzo
-            righe_infissi.append({
-                "Infisso": inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}",
-                "Misure": f"{inf['larghezza_cm']}x{inf['altezza_cm']} cm",
-                "Quantità": inf['quantita'],
-                "m²": round(inf['mq'] * inf['quantita'], 2),
-                "Prezzo €/m²": prezzo,
-                "Subtotale €": round(subtotale, 2)
-            })
-
-        st.dataframe(righe_infissi, use_container_width=True, hide_index=True)
-
-        if righe_maggiorazioni:
-            st.subheader("📋 Dettaglio maggiorazioni")
-            st.dataframe(righe_maggiorazioni, use_container_width=True, hide_index=True)
-
-        st.divider()
+        righe_riepilogo_excel = [
+            {"Voce": r["voce"], "Calcolo": r["calcolo"], "Totale €": round(r["totale"], 2)}
+            for r in righe_riepilogo
+        ]
 
         excel_buffer = genera_excel_preventivo(
             nome_cliente_progetto, progetto_selezionato['indirizzo'], progetto_selezionato['citta'],
-            righe_infissi, righe_maggiorazioni, totale_base, totale_maggiorazioni, totale_finale, mq_totale_progetto
+            righe_riepilogo_excel, totale_base, totale_maggiorazioni, totale_finale, mq_totale_progetto
         )
         st.download_button(
             "📥 Scarica riepilogo Excel",
@@ -171,5 +275,15 @@ else:
                     "maggiorazione_id": m["id"]
                 }).execute()
 
-            st.success(f"Preventivo salvato! Totale: {totale_finale:.2f} €")
+            for mp in st.session_state["maggiorazioni_personalizzate"]:
+                supabase.table("preventivo_maggiorazioni").insert({
+                    "preventivo_id": preventivo_id,
+                    "infisso_id": mp['infisso_id'],
+                    "descrizione_personalizzata": mp['descrizione'],
+                    "importo_personalizzato": mp['importo'],
+                    "tipo_personalizzato": mp['tipo']
+                }).execute()
+
+            st.session_state["maggiorazioni_personalizzate"] = []
+            st.success(f"Preventivo salvato! Totale: {format_euro(totale_finale)}")
             st.balloons()
