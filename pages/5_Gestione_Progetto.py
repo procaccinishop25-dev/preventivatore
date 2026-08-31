@@ -11,15 +11,12 @@ def slug(testo):
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
 
 
-def carica_foto(file_obj, cartella, nome_infisso, infisso_id):
-    nome_file = getattr(file_obj, "name", "foto.jpg")
-    tipo_file = getattr(file_obj, "type", "image/jpeg")
-    percorso = f"{cartella}/{slug(nome_infisso)}_{nome_file}"
-
+def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infisso, infisso_id):
+    percorso = f"{cartella}/{slug(nome_infisso)}_{nome_file_originale}"
     supabase.storage.from_("foto").upload(
         percorso,
-        file_obj.getvalue(),
-        {"content-type": tipo_file, "upsert": "true"}
+        bytes_data,
+        {"content-type": tipo, "upsert": "true"}
     )
     url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
@@ -88,6 +85,10 @@ else:
 
     if "foto_key_counter" not in st.session_state:
         st.session_state["foto_key_counter"] = 0
+    if "foto_catturate" not in st.session_state:
+        st.session_state["foto_catturate"] = []
+    if "camera_shot_counter" not in st.session_state:
+        st.session_state["camera_shot_counter"] = 0
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
 
@@ -102,24 +103,48 @@ else:
 
     contatore = st.session_state["foto_key_counter"]
 
-    st.write("📷 Foto (opzionale)")
+    st.write("📷 Foto (opzionale) — se aggiungi più finestre uguali, carica/scatta una foto per ciascuna: verranno assegnate in ordine")
     metodo_foto = st.radio(
-        "Come vuoi aggiungere la foto?",
+        "Come vuoi aggiungere le foto?",
         ["Nessuna", "Carica da file", "Scatta foto"],
         horizontal=True,
         key=f"metodo_foto_nuovo_{contatore}"
     )
-    foto_input = None
+
+    foto_multiple_da_file = []
     if metodo_foto == "Carica da file":
-        foto_input = st.file_uploader(
-            "Carica foto", type=["jpg", "jpeg", "png"],
+        foto_multiple_da_file = st.file_uploader(
+            "Carica una o più foto (in ordine: 1ª foto → 1° infisso, 2ª foto → 2° infisso, ecc.)",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
             key=f"foto_upload_nuovo_{contatore}"
-        )
+        ) or []
+
     elif metodo_foto == "Scatta foto":
-        foto_input = st.camera_input(
-            "Scatta una foto",
-            key=f"foto_camera_nuovo_{contatore}"
-        )
+        st.caption(f"📸 Foto scattate finora: **{len(st.session_state['foto_catturate'])}**")
+        if st.session_state["foto_catturate"]:
+            cols_preview = st.columns(min(len(st.session_state["foto_catturate"]), 6))
+            for idx, foto in enumerate(st.session_state["foto_catturate"]):
+                with cols_preview[idx % len(cols_preview)]:
+                    st.image(foto["bytes"], width=80)
+
+        scatto = st.camera_input("Scatta una foto", key=f"foto_cam_multi_{st.session_state['camera_shot_counter']}")
+        col_agg, col_svuota = st.columns(2)
+        with col_agg:
+            if scatto is not None:
+                if st.button("➕ Aggiungi questa foto alla lista"):
+                    st.session_state["foto_catturate"].append({
+                        "bytes": scatto.getvalue(),
+                        "type": scatto.type,
+                        "name": scatto.name
+                    })
+                    st.session_state["camera_shot_counter"] += 1
+                    st.rerun()
+        with col_svuota:
+            if st.session_state["foto_catturate"]:
+                if st.button("🗑️ Svuota foto scattate"):
+                    st.session_state["foto_catturate"] = []
+                    st.rerun()
 
     with st.form("nuovo_infisso", clear_on_submit=True):
         tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
@@ -134,11 +159,18 @@ else:
         submitted_inf = st.form_submit_button("Aggiungi Infisso")
 
         if submitted_inf:
+            # Prepara la lista foto da assegnare, in un formato unico (bytes, tipo, nome)
+            lista_foto = []
+            if metodo_foto == "Carica da file" and foto_multiple_da_file:
+                for f in foto_multiple_da_file:
+                    lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
+            elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
+                lista_foto = st.session_state["foto_catturate"]
+
             esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
             numero_iniziale = len(esistenti.data) + 1
 
-            id_primo_infisso = None
-            nome_primo_infisso = None
+            id_infissi_creati = []
 
             for i in range(int(quantita)):
                 numero = numero_iniziale + i
@@ -153,18 +185,22 @@ else:
                     "quantita": 1,
                     "note": note_inf
                 }).execute()
+                id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
 
-                if i == 0:
-                    id_primo_infisso = nuovo.data[0]["id"]
-                    nome_primo_infisso = nome_infisso
+            # Assegna le foto in ordine agli infissi appena creati
+            for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
+                if idx < len(lista_foto):
+                    foto = lista_foto[idx]
+                    carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
 
-            if foto_input is not None and id_primo_infisso:
-                carica_foto(foto_input, cartella_progetto, nome_primo_infisso, id_primo_infisso)
+            if lista_foto and len(lista_foto) < int(quantita):
+                st.info(f"Assegnate {len(lista_foto)} foto su {int(quantita)} infissi. Le restanti finestre sono senza foto, aggiungile singolarmente qui sotto.")
+            elif lista_foto and len(lista_foto) > int(quantita):
+                st.info(f"Hai caricato {len(lista_foto)} foto ma creato solo {int(quantita)} infissi: le foto in eccesso sono state ignorate.")
 
-            if int(quantita) > 1 and foto_input is not None:
-                st.info(f"Foto associata solo a **{nome_primo_infisso}**. Per gli altri, apri il singolo infisso qui sotto.")
-
+            # Reset per il prossimo inserimento
             st.session_state["foto_key_counter"] += 1
+            st.session_state["foto_catturate"] = []
 
             st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
             st.rerun()
@@ -223,7 +259,7 @@ else:
 
                 if foto_caricata is not None:
                     if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
-                        carica_foto(foto_caricata, cartella_progetto, nome_visualizzato, inf['id'])
+                        carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
                         st.success("Foto caricata!")
                         st.rerun()
 
