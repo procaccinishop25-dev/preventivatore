@@ -1,15 +1,22 @@
 import streamlit as st
 from services.supabase import supabase
 from datetime import date
+import re
+
+
+def slug(testo):
+    """Rende una stringa sicura per essere usata come nome di cartella/file."""
+    testo = testo.strip().replace(" ", "_")
+    return re.sub(r"[^A-Za-z0-9_-]", "", testo)
+
 
 st.set_page_config(page_title="Nuovo Progetto", page_icon="📋")
 
 st.title("📋 Nuovo Progetto")
 
-# Se non abbiamo ancora un progetto creato in questa sessione, mostra il form iniziale
 if "progetto_creato_id" not in st.session_state:
 
-    with st.form("nuovo_progetto"):
+    with st.form("nuovo_progetto", clear_on_submit=True):
         st.subheader("Dati Cliente")
         nome = st.text_input("Nome")
         cognome_azienda = st.text_input("Cognome / Azienda")
@@ -55,15 +62,15 @@ if "progetto_creato_id" not in st.session_state:
                 st.session_state["progetto_creato_nome"] = f"{nome} {cognome_azienda}"
                 st.rerun()
 
-# Se il progetto è stato creato, mostra subito la sezione infissi
 else:
     progetto_id = st.session_state["progetto_creato_id"]
     nome_cliente = st.session_state["progetto_creato_nome"]
+    cartella_progetto = slug(nome_cliente)
 
     st.success(f"✅ Progetto per **{nome_cliente}** salvato!")
     st.subheader("🪟 Ora aggiungi gli infissi")
 
-    with st.form("nuovo_infisso"):
+    with st.form("nuovo_infisso", clear_on_submit=True):
         tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
         larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0)
         altezza = st.number_input("Altezza (cm)", min_value=1.0, step=1.0)
@@ -76,33 +83,43 @@ else:
         submitted_inf = st.form_submit_button("Aggiungi Infisso")
 
         if submitted_inf:
-            supabase.table("infissi").insert({
-                "progetto_id": progetto_id,
-                "tipologia": tipologia,
-                "larghezza_cm": larghezza,
-                "altezza_cm": altezza,
-                "quantita": quantita,
-                "note": note_inf
-            }).execute()
-            st.success(f"Infisso aggiunto: {tipologia} {larghezza}x{altezza} cm")
+            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
+            numero_iniziale = len(esistenti.data) + 1
+
+            for i in range(int(quantita)):
+                numero = numero_iniziale + i
+                nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
+                supabase.table("infissi").insert({
+                    "progetto_id": progetto_id,
+                    "tipologia": tipologia,
+                    "numero_infisso": numero,
+                    "nome": nome_infisso,
+                    "larghezza_cm": larghezza,
+                    "altezza_cm": altezza,
+                    "quantita": 1,
+                    "note": note_inf
+                }).execute()
+
+            st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
             st.rerun()
 
     st.divider()
 
-    infissi = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).execute()
+    infissi = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
 
     if infissi.data:
         totale_mq = sum(i['mq'] * i['quantita'] for i in infissi.data)
         st.caption(f"Infissi inseriti: {len(infissi.data)} — Superficie totale: **{totale_mq:.2f} m²**")
 
         for inf in infissi.data:
-            with st.expander(f"{inf['tipologia']} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m² — Qtà: {inf['quantita']}"):
+            nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
+
+            with st.expander(f"{nome_visualizzato} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m²"):
                 col1, col2 = st.columns(2)
                 with col1:
                     nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
                     nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
                 with col2:
-                    nuova_quantita = st.number_input("Quantità", value=int(inf['quantita']), min_value=1, key=f"qta_{inf['id']}")
                     nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}")
 
                 col_salva, col_elimina = st.columns(2)
@@ -111,7 +128,6 @@ else:
                         supabase.table("infissi").update({
                             "larghezza_cm": nuova_larghezza,
                             "altezza_cm": nuova_altezza,
-                            "quantita": nuova_quantita,
                             "note": nuove_note
                         }).eq("id", inf['id']).execute()
                         st.success("Modificato!")
@@ -131,7 +147,7 @@ else:
 
                 if foto_caricata is not None:
                     if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
-                        percorso = f"{progetto_id}/{inf['id']}_{foto_caricata.name}"
+                        percorso = f"{cartella_progetto}/{slug(nome_visualizzato)}_{foto_caricata.name}"
                         supabase.storage.from_("foto").upload(
                             percorso,
                             foto_caricata.getvalue(),
