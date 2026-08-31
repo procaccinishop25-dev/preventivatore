@@ -62,7 +62,7 @@ else:
                 if st.button("Apri →", key=f"apri_{p['id']}"):
                     st.session_state["progetto_corrente_id"] = p['id']
                     st.session_state["progetto_corrente_nome"] = nome_completo
-                    st.switch_page("pages/5_Gestione_Progetto.py")
+                    st.switch_page("moduli/gestione_progetto.py")
             with col3:
                 if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
                     conferma_eliminazione(p['id'], nome_completo)
