@@ -35,9 +35,33 @@ else:
     nome_cliente = st.session_state["progetto_corrente_nome"]
     cartella_progetto = slug(nome_cliente)
 
+    if "foto_key_counter" not in st.session_state:
+        st.session_state["foto_key_counter"] = 0
+
     st.success(f"✅ Progetto: **{nome_cliente}**")
     st.subheader("Aggiungi infissi")
 
+    # --- Sezione foto FUORI dal form, così reagisce subito alla scelta ---
+    st.write("📷 Foto (opzionale)")
+    metodo_foto = st.radio(
+        "Come vuoi aggiungere la foto?",
+        ["Nessuna", "Carica da file", "Scatta foto"],
+        horizontal=True,
+        key="metodo_foto_nuovo"
+    )
+    foto_input = None
+    if metodo_foto == "Carica da file":
+        foto_input = st.file_uploader(
+            "Carica foto", type=["jpg", "jpeg", "png"],
+            key=f"foto_upload_nuovo_{st.session_state['foto_key_counter']}"
+        )
+    elif metodo_foto == "Scatta foto":
+        foto_input = st.camera_input(
+            "Scatta una foto",
+            key=f"foto_camera_nuovo_{st.session_state['foto_key_counter']}"
+        )
+
+    # --- Form solo per i dati dell'infisso ---
     with st.form("nuovo_infisso", clear_on_submit=True):
         tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
         larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0)
@@ -47,19 +71,6 @@ else:
 
         mq_anteprima = (larghezza / 100) * (altezza / 100)
         st.caption(f"Superficie calcolata: **{mq_anteprima:.2f} m²** per pezzo")
-
-        st.write("📷 Foto (opzionale)")
-        metodo_foto = st.radio(
-            "Come vuoi aggiungere la foto?",
-            ["Nessuna", "Carica da file", "Scatta foto"],
-            horizontal=True,
-            key="metodo_foto_nuovo"
-        )
-        foto_input = None
-        if metodo_foto == "Carica da file":
-            foto_input = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key="foto_upload_nuovo")
-        elif metodo_foto == "Scatta foto":
-            foto_input = st.camera_input("Scatta una foto", key="foto_camera_nuovo")
 
         submitted_inf = st.form_submit_button("Aggiungi Infisso")
 
@@ -93,6 +104,10 @@ else:
 
             if int(quantita) > 1 and foto_input is not None:
                 st.info(f"Foto associata solo a **{nome_primo_infisso}**. Per gli altri, apri il singolo infisso qui sotto.")
+
+            # Reset campo foto per il prossimo inserimento
+            st.session_state["foto_key_counter"] += 1
+            st.session_state["metodo_foto_nuovo"] = "Nessuna"
 
             st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
             st.rerun()
