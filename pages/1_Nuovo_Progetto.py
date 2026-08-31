@@ -100,7 +100,7 @@ else:
             with col1:
                 st.write(f"**{inf['tipologia']}** — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m² — Qtà: {inf['quantita']}")
             with col2:
-                if st.button("🗑️", key=f"del_{inf['id']}"):
+                if st.button("Elimina", key=f"del_{inf['id']}"):
                     supabase.table("infissi").delete().eq("id", inf['id']).execute()
                     st.rerun()
     else:
