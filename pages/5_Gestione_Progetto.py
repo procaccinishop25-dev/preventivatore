@@ -1,5 +1,8 @@
 import streamlit as st
 from services.supabase import supabase
+from streamlit_drawable_canvas import st_canvas
+from PIL import Image
+import io
 import re
 
 
@@ -22,7 +25,55 @@ def carica_foto(file_obj, cartella, nome_infisso, infisso_id):
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
-st.set_page_config(page_title="Gestione Progetto", page_icon="🪟")
+def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
+    img = Image.fromarray(image_data.astype("uint8"), "RGBA")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    percorso = f"{cartella}/{slug(nome_file)}.png"
+    supabase.storage.from_("schizzi").upload(
+        percorso,
+        buffer.getvalue(),
+        {"content-type": "image/png", "upsert": "true"}
+    )
+    url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
+    supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
+
+
+def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
+    if url_esistente:
+        st.image(url_esistente, width=250, caption="Schizzo attuale")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        strumento = st.radio("Strumento", ["Penna", "Gomma"], horizontal=True, key=f"strumento_{key_prefix}")
+    with col2:
+        spessore = st.slider("Spessore", 1, 25, 3, key=f"spessore_{key_prefix}")
+
+    colore = "#000000" if strumento == "Penna" else "#FFFFFF"
+
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 255, 255, 0)",
+        stroke_width=spessore,
+        stroke_color=colore,
+        background_color="#FFFFFF",
+        height=350,
+        width=500,
+        drawing_mode="freedraw",
+        display_toolbar=True,
+        key=f"canvas_{key_prefix}"
+    )
+
+    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
+        if canvas_result.image_data is not None:
+            salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
+            st.success("Schizzo salvato!")
+            st.rerun()
+        else:
+            st.warning("Disegna qualcosa prima di salvare.")
+
+
+st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
 
 st.title("🪟 Gestione Progetto")
 
@@ -39,9 +90,16 @@ else:
         st.session_state["foto_key_counter"] = 0
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
+
+    # --- Schizzo generale del progetto ---
+    with st.expander("✏️ Schizzo generale del progetto (es. pianta del cantiere)"):
+        progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
+        schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
+        pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
+
+    st.divider()
     st.subheader("Aggiungi infissi")
 
-    # --- Sezione foto FUORI dal form, così reagisce subito alla scelta ---
     st.write("📷 Foto (opzionale)")
     metodo_foto = st.radio(
         "Come vuoi aggiungere la foto?",
@@ -61,7 +119,6 @@ else:
             key=f"foto_camera_nuovo_{st.session_state['foto_key_counter']}"
         )
 
-    # --- Form solo per i dati dell'infisso ---
     with st.form("nuovo_infisso", clear_on_submit=True):
         tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
         larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0)
@@ -105,7 +162,6 @@ else:
             if int(quantita) > 1 and foto_input is not None:
                 st.info(f"Foto associata solo a **{nome_primo_infisso}**. Per gli altri, apri il singolo infisso qui sotto.")
 
-            # Reset campo foto per il prossimo inserimento
             st.session_state["foto_key_counter"] += 1
             st.session_state["metodo_foto_nuovo"] = "Nessuna"
 
@@ -169,6 +225,20 @@ else:
                         carica_foto(foto_caricata, cartella_progetto, nome_visualizzato, inf['id'])
                         st.success("Foto caricata!")
                         st.rerun()
+
+                st.divider()
+                st.write("✏️ Schizzo")
+
+                mostra_schizzo = st.checkbox("Aggiungi/modifica schizzo", key=f"mostra_schizzo_{inf['id']}")
+                if mostra_schizzo:
+                    pannello_schizzo(
+                        f"infisso_{inf['id']}",
+                        cartella_progetto,
+                        nome_visualizzato,
+                        "infissi",
+                        inf['id'],
+                        inf.get('schizzo_url')
+                    )
     else:
         st.info("Nessun infisso ancora inserito.")
 
