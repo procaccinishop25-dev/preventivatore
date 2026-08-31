@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
 from streamlit_drawable_canvas import st_canvas
+from streamlit_image_coordinates import streamlit_image_coordinates
 from PIL import Image, ImageDraw, ImageFont
 import io
 import re
@@ -22,30 +23,11 @@ def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infi
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
-def salva_schizzo(image_data, cartella, nome_file, tabella, record_id, testo=None, dimensione=20, pos_x=50, pos_y=50):
-    img = Image.fromarray(image_data.astype("uint8"), "RGBA")
-
-    if testo:
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.load_default(size=dimensione)
-        except TypeError:
-            font = ImageFont.load_default()
-        x = int(img.width * pos_x / 100)
-        y = int(img.height * pos_y / 100)
-        draw.text((x, y), testo, fill="black", font=font)
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    percorso = f"{cartella}/{slug(nome_file)}.png"
-    supabase.storage.from_("schizzi").upload(
-        percorso,
-        buffer.getvalue(),
-        {"content-type": "image/png", "upsert": "true"}
-    )
-    url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
-    supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
+def carica_font(dimensione):
+    try:
+        return ImageFont.load_default(size=dimensione)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
@@ -75,43 +57,85 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     if strumento == "Linea dritta":
         st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
 
+    canvas_width, canvas_height = 500, 350
+
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        height=350,
-        width=500,
+        height=canvas_height,
+        width=canvas_width,
         drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
     )
 
-    st.write("📝 Aggiungi testo (opzionale)")
-    testo_da_aggiungere = st.text_input("Testo da scrivere sullo schizzo", key=f"testo_{key_prefix}")
+    if canvas_result.image_data is not None:
+        disegno_attuale = Image.fromarray(canvas_result.image_data.astype("uint8"), "RGBA")
+    else:
+        disegno_attuale = Image.new("RGBA", (canvas_width, canvas_height), "white")
 
-    col_dim, col_x, col_y = st.columns(3)
+    chiave_testi = f"testi_schizzo_{key_prefix}"
+    chiave_ultimo_click = f"ultimo_click_{key_prefix}"
+    if chiave_testi not in st.session_state:
+        st.session_state[chiave_testi] = []
+    if chiave_ultimo_click not in st.session_state:
+        st.session_state[chiave_ultimo_click] = None
+
+    st.divider()
+    st.write("📝 Aggiungi testo: scrivilo qui sotto, poi **clicca sul disegno** nel punto dove vuoi posizionarlo")
+
+    col_testo, col_dim = st.columns([3, 1])
+    with col_testo:
+        testo_da_inserire = st.text_input("Testo da inserire", key=f"testo_input_{key_prefix}")
     with col_dim:
-        dimensione_testo = st.slider("Dimensione testo", 10, 60, 20, key=f"dim_testo_{key_prefix}")
-    with col_x:
-        pos_x = st.slider("Posizione orizzontale (%)", 0, 100, 50, key=f"posx_testo_{key_prefix}")
-    with col_y:
-        pos_y = st.slider("Posizione verticale (%)", 0, 100, 50, key=f"posy_testo_{key_prefix}")
+        dimensione_testo = st.slider("Dimensione", 10, 60, 20, key=f"dim_testo_{key_prefix}")
 
-    if testo_da_aggiungere:
-        st.caption("Il testo verrà scritto nella posizione indicata (0% = in alto a sinistra, 100% = in basso a destra) al momento del salvataggio.")
+    # Anteprima: disegno attuale + tutti i testi già posizionati
+    anteprima = disegno_attuale.copy()
+    draw = ImageDraw.Draw(anteprima)
+    for t in st.session_state[chiave_testi]:
+        draw.text((t["x"], t["y"]), t["testo"], fill="black", font=carica_font(t["dimensione"]))
 
-    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
-        if canvas_result.image_data is not None:
-            salva_schizzo(
-                canvas_result.image_data, cartella, nome_file, tabella, record_id,
-                testo=testo_da_aggiungere if testo_da_aggiungere else None,
-                dimensione=dimensione_testo, pos_x=pos_x, pos_y=pos_y
-            )
-            st.success("Schizzo salvato!")
+    click = streamlit_image_coordinates(anteprima, key=f"click_{key_prefix}")
+
+    if click is not None and click != st.session_state[chiave_ultimo_click]:
+        st.session_state[chiave_ultimo_click] = click
+        if testo_da_inserire:
+            st.session_state[chiave_testi].append({
+                "x": click["x"], "y": click["y"],
+                "testo": testo_da_inserire, "dimensione": dimensione_testo
+            })
             st.rerun()
         else:
-            st.warning("Disegna qualcosa prima di salvare.")
+            st.warning("Scrivi il testo prima di cliccare sul disegno.")
+
+    if st.session_state[chiave_testi]:
+        if st.button("🗑️ Rimuovi ultimo testo aggiunto", key=f"rimuovi_testo_{key_prefix}"):
+            st.session_state[chiave_testi].pop()
+            st.rerun()
+
+    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
+        finale = disegno_attuale.copy()
+        draw_finale = ImageDraw.Draw(finale)
+        for t in st.session_state[chiave_testi]:
+            draw_finale.text((t["x"], t["y"]), t["testo"], fill="black", font=carica_font(t["dimensione"]))
+
+        buffer = io.BytesIO()
+        finale.save(buffer, format="PNG")
+        buffer.seek(0)
+        percorso = f"{cartella}/{slug(nome_file)}.png"
+        supabase.storage.from_("schizzi").upload(
+            percorso, buffer.getvalue(), {"content-type": "image/png", "upsert": "true"}
+        )
+        url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
+        supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
+
+        st.session_state[chiave_testi] = []
+        st.session_state[chiave_ultimo_click] = None
+        st.success("Schizzo salvato!")
+        st.rerun()
 
 
 st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
@@ -138,215 +162,4 @@ else:
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
 
-    st.write("✏️ Schizzo generale del progetto (es. pianta del cantiere)")
-    mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
-    if mostra_schizzo_generale:
-        progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
-        schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
-        pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
-
-    st.divider()
-    st.subheader("Aggiungi infissi")
-
-    contatore = st.session_state["foto_key_counter"]
-
-    st.write("📷 Foto (opzionale) — se aggiungi più finestre uguali, carica/scatta una foto per ciascuna: verranno assegnate in ordine")
-    metodo_foto = st.radio(
-        "Come vuoi aggiungere le foto?",
-        ["Nessuna", "Carica da file", "Scatta foto"],
-        horizontal=True,
-        key=f"metodo_foto_nuovo_{contatore}"
-    )
-
-    foto_multiple_da_file = []
-    if metodo_foto == "Carica da file":
-        foto_multiple_da_file = st.file_uploader(
-            "Carica una o più foto (in ordine: 1ª foto → 1° infisso, 2ª foto → 2° infisso, ecc.)",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key=f"foto_upload_nuovo_{contatore}"
-        ) or []
-
-    elif metodo_foto == "Scatta foto":
-        st.caption(f"📸 Foto scattate finora: **{len(st.session_state['foto_catturate'])}**")
-        if st.session_state["foto_catturate"]:
-            cols_preview = st.columns(min(len(st.session_state["foto_catturate"]), 6))
-            for idx, foto in enumerate(st.session_state["foto_catturate"]):
-                with cols_preview[idx % len(cols_preview)]:
-                    st.image(foto["bytes"], width=80)
-
-        if st.session_state["fotocamera_aperta"]:
-            scatto = st.camera_input("Scatta una foto", key=f"foto_cam_multi_{st.session_state['camera_shot_counter']}")
-
-            col_agg, col_chiudi = st.columns(2)
-            with col_agg:
-                if scatto is not None:
-                    if st.button("➕ Aggiungi questa foto alla lista"):
-                        st.session_state["foto_catturate"].append({
-                            "bytes": scatto.getvalue(),
-                            "type": scatto.type,
-                            "name": scatto.name
-                        })
-                        st.session_state["camera_shot_counter"] += 1
-                        st.rerun()
-            with col_chiudi:
-                if st.button("✅ Ho finito, chiudi fotocamera"):
-                    st.session_state["fotocamera_aperta"] = False
-                    st.rerun()
-        else:
-            st.info("Fotocamera chiusa.")
-            col_riapri, col_svuota = st.columns(2)
-            with col_riapri:
-                if st.button("📷 Riapri fotocamera"):
-                    st.session_state["fotocamera_aperta"] = True
-                    st.rerun()
-            with col_svuota:
-                if st.session_state["foto_catturate"]:
-                    if st.button("🗑️ Svuota foto scattate"):
-                        st.session_state["foto_catturate"] = []
-                        st.rerun()
-
-    with st.form("nuovo_infisso", clear_on_submit=True):
-        tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
-        larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0)
-        altezza = st.number_input("Altezza (cm)", min_value=1.0, step=1.0)
-        quantita = st.number_input("Quantità", min_value=1, step=1, value=1)
-        note_inf = st.text_area("Note")
-
-        mq_anteprima = (larghezza / 100) * (altezza / 100)
-        st.caption(f"Superficie calcolata: **{mq_anteprima:.2f} m²** per pezzo")
-
-        submitted_inf = st.form_submit_button("Aggiungi Infisso")
-
-        if submitted_inf:
-            lista_foto = []
-            if metodo_foto == "Carica da file" and foto_multiple_da_file:
-                for f in foto_multiple_da_file:
-                    lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
-            elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
-                lista_foto = st.session_state["foto_catturate"]
-
-            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
-            numero_iniziale = len(esistenti.data) + 1
-
-            id_infissi_creati = []
-
-            for i in range(int(quantita)):
-                numero = numero_iniziale + i
-                nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
-                nuovo = supabase.table("infissi").insert({
-                    "progetto_id": progetto_id,
-                    "tipologia": tipologia,
-                    "numero_infisso": numero,
-                    "nome": nome_infisso,
-                    "larghezza_cm": larghezza,
-                    "altezza_cm": altezza,
-                    "quantita": 1,
-                    "note": note_inf
-                }).execute()
-                id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
-
-            for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
-                if idx < len(lista_foto):
-                    foto = lista_foto[idx]
-                    carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
-
-            if lista_foto and len(lista_foto) < int(quantita):
-                st.info(f"Assegnate {len(lista_foto)} foto su {int(quantita)} infissi. Le restanti finestre sono senza foto, aggiungile singolarmente qui sotto.")
-            elif lista_foto and len(lista_foto) > int(quantita):
-                st.info(f"Hai caricato {len(lista_foto)} foto ma creato solo {int(quantita)} infissi: le foto in eccesso sono state ignorate.")
-
-            st.session_state["foto_key_counter"] += 1
-            st.session_state["foto_catturate"] = []
-            st.session_state["fotocamera_aperta"] = True
-
-            st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
-            st.rerun()
-
-    st.divider()
-
-    infissi = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
-
-    if infissi.data:
-        totale_mq = sum(i['mq'] * i['quantita'] for i in infissi.data)
-        st.caption(f"Infissi inseriti: {len(infissi.data)} — Superficie totale: **{totale_mq:.2f} m²**")
-
-        for inf in infissi.data:
-            nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
-
-            with st.expander(f"{nome_visualizzato} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m²"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
-                    nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
-                with col2:
-                    nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}")
-
-                col_salva, col_elimina = st.columns(2)
-                with col_salva:
-                    if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}"):
-                        supabase.table("infissi").update({
-                            "larghezza_cm": nuova_larghezza,
-                            "altezza_cm": nuova_altezza,
-                            "note": nuove_note
-                        }).eq("id", inf['id']).execute()
-                        st.success("Modificato!")
-                        st.rerun()
-                with col_elimina:
-                    if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}"):
-                        supabase.table("infissi").delete().eq("id", inf['id']).execute()
-                        st.rerun()
-
-                st.divider()
-                st.write("📷 Foto")
-
-                if inf.get('foto_url'):
-                    st.image(inf['foto_url'], width=200)
-
-                metodo_foto_inf = st.radio(
-                    "Come vuoi aggiungere/cambiare la foto?",
-                    ["Carica da file", "Scatta foto"],
-                    horizontal=True,
-                    key=f"metodo_foto_{inf['id']}"
-                )
-
-                if metodo_foto_inf == "Carica da file":
-                    foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
-                else:
-                    foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
-
-                if foto_caricata is not None:
-                    if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
-                        carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
-                        st.success("Foto caricata!")
-                        st.rerun()
-
-                st.divider()
-                st.write("✏️ Schizzo")
-
-                mostra_schizzo = st.checkbox("Aggiungi/modifica schizzo", key=f"mostra_schizzo_{inf['id']}")
-                if mostra_schizzo:
-                    pannello_schizzo(
-                        f"infisso_{inf['id']}",
-                        cartella_progetto,
-                        nome_visualizzato,
-                        "infissi",
-                        inf['id'],
-                        inf.get('schizzo_url')
-                    )
-    else:
-        st.info("Nessun infisso ancora inserito.")
-
-    st.divider()
-
-    col_fine, col_nuovo = st.columns(2)
-    with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti"):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/2_Progetti.py")
-    with col_nuovo:
-        if st.button("➕ Crea un altro progetto"):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/1_Nuovo_Progetto.py")
+    st.write("✏️
