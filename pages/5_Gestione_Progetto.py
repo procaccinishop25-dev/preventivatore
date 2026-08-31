@@ -38,16 +38,31 @@ def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
 
 
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
-    if url_esistente:
+    if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=250, caption="Schizzo attuale")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        strumento = st.radio("Strumento", ["Penna", "Gomma"], horizontal=True, key=f"strumento_{key_prefix}")
-    with col2:
-        spessore = st.slider("Spessore", 1, 25, 3, key=f"spessore_{key_prefix}")
+    strumento = st.radio(
+        "Strumento",
+        ["Penna", "Gomma", "Linea dritta"],
+        horizontal=True,
+        key=f"strumento_{key_prefix}"
+    )
 
-    colore = "#000000" if strumento == "Penna" else "#FFFFFF"
+    if strumento == "Penna":
+        spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
+        colore = "#000000"
+        modalita = "freedraw"
+    elif strumento == "Gomma":
+        spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_{key_prefix}")
+        colore = "#FFFFFF"
+        modalita = "freedraw"
+    else:
+        spessore = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_{key_prefix}")
+        colore = "#000000"
+        modalita = "line"
+
+    if strumento == "Linea dritta":
+        st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
@@ -56,7 +71,7 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
         background_color="#FFFFFF",
         height=350,
         width=500,
-        drawing_mode="freedraw",
+        drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
     )
@@ -94,8 +109,10 @@ else:
 
     st.success(f"✅ Progetto: **{nome_cliente}**")
 
-    # --- Schizzo generale del progetto ---
-    with st.expander("✏️ Schizzo generale del progetto (es. pianta del cantiere)"):
+    # --- Schizzo generale del progetto (checkbox invece di expander, per evitare il bug del canvas a larghezza 0) ---
+    st.write("✏️ Schizzo generale del progetto (es. pianta del cantiere)")
+    mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
+    if mostra_schizzo_generale:
         progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
         schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
         pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
