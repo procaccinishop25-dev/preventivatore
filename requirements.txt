@@ -2,3 +2,4 @@ streamlit
 supabase
 streamlit-drawable-canvas-fix
 Pillow
+streamlit-image-coordinates
