@@ -217,19 +217,3 @@ else:
             del st.session_state["progetto_creato_id"]
             del st.session_state["progetto_creato_nome"]
             st.rerun()
-
-    st.divider()
-
-    with st.expander("⚠️ Elimina questo progetto"):
-        st.warning("Questa azione eliminerà definitivamente il progetto, tutti i suoi infissi e le foto caricate. Non si può annullare.")
-        conferma = st.checkbox("Sì, sono sicuro di voler eliminare tutto", key="conferma_elimina_progetto")
-        if st.button("🗑️ Elimina definitivamente il progetto", disabled=not conferma):
-            file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
-            if file_esistenti:
-                percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
-                supabase.storage.from_("foto").remove(percorsi)
-            supabase.table("progetti").delete().eq("id", progetto_id).execute()
-            del st.session_state["progetto_creato_id"]
-            del st.session_state["progetto_creato_nome"]
-            st.success("Progetto eliminato.")
-            st.switch_page("pages/2_Progetti.py")
