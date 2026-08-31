@@ -50,4 +50,4 @@ with st.form("nuovo_progetto", clear_on_submit=True):
 
             st.session_state["progetto_corrente_id"] = progetto.data[0]["id"]
             st.session_state["progetto_corrente_nome"] = f"{nome} {cognome_azienda}"
-            st.switch_page("pages/5_Gestione_Progetto.py")
+            st.switch_page("moduli/gestione_progetto.py")
