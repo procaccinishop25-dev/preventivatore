@@ -60,8 +60,9 @@ else:
                 st.caption(f"🪟 {num_infissi} infissi — {mq_totali:.2f} m² totali — Stato: {p['stato']}")
             with col2:
                 if st.button("Apri →", key=f"apri_{p['id']}"):
-                    st.query_params["progetto_id"] = p['id']
-                    st.switch_page("pages/1_Nuovo_Progetto.py")
+                    st.session_state["progetto_corrente_id"] = p['id']
+                    st.session_state["progetto_corrente_nome"] = nome_completo
+                    st.switch_page("pages/5_Gestione_Progetto.py")
             with col3:
                 if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
                     conferma_eliminazione(p['id'], nome_completo)
