@@ -100,23 +100,25 @@ else:
     st.divider()
     st.subheader("Aggiungi infissi")
 
+    contatore = st.session_state["foto_key_counter"]
+
     st.write("📷 Foto (opzionale)")
     metodo_foto = st.radio(
         "Come vuoi aggiungere la foto?",
         ["Nessuna", "Carica da file", "Scatta foto"],
         horizontal=True,
-        key="metodo_foto_nuovo"
+        key=f"metodo_foto_nuovo_{contatore}"
     )
     foto_input = None
     if metodo_foto == "Carica da file":
         foto_input = st.file_uploader(
             "Carica foto", type=["jpg", "jpeg", "png"],
-            key=f"foto_upload_nuovo_{st.session_state['foto_key_counter']}"
+            key=f"foto_upload_nuovo_{contatore}"
         )
     elif metodo_foto == "Scatta foto":
         foto_input = st.camera_input(
             "Scatta una foto",
-            key=f"foto_camera_nuovo_{st.session_state['foto_key_counter']}"
+            key=f"foto_camera_nuovo_{contatore}"
         )
 
     with st.form("nuovo_infisso", clear_on_submit=True):
@@ -163,7 +165,6 @@ else:
                 st.info(f"Foto associata solo a **{nome_primo_infisso}**. Per gli altri, apri il singolo infisso qui sotto.")
 
             st.session_state["foto_key_counter"] += 1
-            st.session_state["metodo_foto_nuovo"] = "Nessuna"
 
             st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
             st.rerun()
