@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
 from services.theme import apply_custom_theme, badge
+from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
@@ -100,18 +101,12 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
             st.warning("Disegna qualcosa prima di salvare.")
 
 
-# ============================================================
-# DIALOG: Schizzo generale del progetto
-# ============================================================
 @st.dialog("✏️ Schizzo generale del progetto", width="large")
 def dialog_schizzo_generale(progetto_id, cartella_progetto, schizzo_url_esistente):
     st.caption("Es. pianta del cantiere — utile per orientarsi tra gli infissi.")
     pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_url_esistente)
 
 
-# ============================================================
-# DIALOG: Foto generali del progetto
-# ============================================================
 @st.dialog("📷 Foto generali del cantiere", width="large")
 def dialog_foto_generali(cartella_progetto):
     st.caption("Es. schizzi su carta fotografati, foto d'insieme del cantiere.")
@@ -205,9 +200,6 @@ def dialog_foto_generali(cartella_progetto):
                 st.rerun()
 
 
-# ============================================================
-# DIALOG: Aggiungi infisso
-# ============================================================
 @st.dialog("➕ Aggiungi infisso", width="large")
 def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
     if "foto_key_counter" not in st.session_state:
@@ -333,9 +325,6 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
         st.rerun()
 
 
-# ============================================================
-# DIALOG: Dettagli / modifica infisso
-# ============================================================
 @st.dialog("Dettagli infisso", width="large")
 def dialog_dettagli_infisso(inf, cartella_progetto):
     nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
@@ -397,10 +386,6 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
         pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
 
 
-# ============================================================
-# PAGINA
-# ============================================================
-
 st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
 apply_custom_theme()
 
@@ -414,15 +399,17 @@ else:
     nome_cliente = st.session_state["progetto_corrente_nome"]
     cartella_progetto = slug(nome_cliente)
 
-    progetto_row = supabase.table("progetti").select("indirizzo, citta, schizzo_url").eq("id", progetto_id).execute()
+    progetto_row = supabase.table("progetti").select(
+        "indirizzo, citta, data_sopralluogo, operatore, schizzo_url, clienti(nome, cognome_azienda, telefono, email)"
+    ).eq("id", progetto_id).execute()
     progetto_data = progetto_row.data[0] if progetto_row.data else {}
+    cliente_data = progetto_data.get("clienti") or {}
 
     infissi_esistenti = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
     lista_infissi = infissi_esistenti.data or []
     num_infissi_tot = len(lista_infissi)
     mq_tot = sum(i['mq'] * i['quantita'] for i in lista_infissi)
 
-    # ---------- HEADER ----------
     st.markdown(
         f"<div style='font-size:0.82rem; color:var(--color-text-secondary); font-weight:500; margin-bottom:2px;'>PROGETTO</div>"
         f"<h1 style='margin:0 0 2px 0;'>{nome_cliente}</h1>"
@@ -431,7 +418,6 @@ else:
         unsafe_allow_html=True
     )
 
-    # ---------- BARRA STATISTICHE COMPATTA ----------
     st.markdown(
         f"<div style='display:flex; gap:2.2rem; align-items:center; padding:0.7rem 0; "
         f"border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border); margin-bottom:1.2rem;'>"
@@ -444,7 +430,6 @@ else:
         unsafe_allow_html=True
     )
 
-    # ---------- DOCUMENTAZIONE CANTIERE (compatta) ----------
     foto_generali_count = len(elenco_foto_generali(cartella_progetto))
     schizzo_presente = bool(progetto_data.get('schizzo_url'))
 
@@ -471,7 +456,6 @@ else:
 
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
-    # ---------- SEZIONE INFISSI (focus principale) ----------
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
         st.markdown(f"### 🪟 Infissi <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({num_infissi_tot})</span>", unsafe_allow_html=True)
@@ -525,12 +509,37 @@ else:
     else:
         st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
 
-    # ---------- PROSSIMA AZIONE ----------
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
     st.divider()
+
+    st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
+
+    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
+        if num_infissi_tot == 0:
+            st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
+        else:
+            with st.spinner("Generazione preventivo e PDF in corso..."):
+                progetto_info_pdf = {**progetto_data, "id": progetto_id}
+                preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(progetto_id, progetto_info_pdf, cliente_data)
+            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente)}.pdf")
+            dialog_dopo_generazione_preventivo(
+                preventivo_id, pdf_buffer, contesto, cliente_data, nome_cliente,
+                progetto_data.get('indirizzo', ''), progetto_data.get('citta', '')
+            )
+
+    col_link1, col_link2 = st.columns([1, 3])
+    with col_link1:
+        if st.button("Preventivo personalizzato →", use_container_width=True):
+            st.session_state["preventivo_preseleziona_id"] = progetto_id
+            st.switch_page("pages/3_Nuovo_Preventivo.py")
+    with col_link2:
+        st.caption("Imposta prezzi per tipologia e maggiorazioni su misura, invece del calcolo rapido.")
+
+    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
     col_fine, col_nuovo = st.columns(2)
     with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti", use_container_width=True, type="primary"):
+        if st.button("✅ Ho finito, vai a I Miei Progetti", use_container_width=True):
             del st.session_state["progetto_corrente_id"]
             del st.session_state["progetto_corrente_nome"]
             st.switch_page("pages/2_Progetti.py")
