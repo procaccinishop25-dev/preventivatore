@@ -1,8 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
-from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, format_euro, slug
-from services.email import invia_email_preventivo
-from datetime import datetime, timezone
+from services.theme import apply_custom_theme, stato_badge
+from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, trigger_download_automatico, dialog_dopo_generazione_preventivo, format_euro, slug
 
 
 def formatta_data(data_iso):
@@ -10,6 +9,16 @@ def formatta_data(data_iso):
         return "/".join(reversed(data_iso[:10].split("-")))
     except Exception:
         return data_iso
+
+
+@st.dialog("Cambia stato")
+def dialog_cambia_stato(preventivo_id, stato_attuale):
+    stati_disponibili = ["bozza", "inviato", "accettato", "rifiutato"]
+    indice = stati_disponibili.index(stato_attuale) if stato_attuale in stati_disponibili else 0
+    nuovo_stato = st.radio("Nuovo stato", stati_disponibili, index=indice, format_func=lambda s: s.capitalize())
+    if st.button("Salva", type="primary", use_container_width=True):
+        supabase.table("preventivi").update({"stato": nuovo_stato}).eq("id", preventivo_id).execute()
+        st.rerun()
 
 
 @st.dialog("⚠️ Elimina preventivo")
@@ -28,9 +37,14 @@ def conferma_eliminazione_preventivo(preventivo_id, descrizione):
             st.rerun()
 
 
-st.set_page_config(page_title="Preventivi", page_icon="📄")
+st.set_page_config(page_title="I Miei Preventivi", page_icon="📄")
+apply_custom_theme()
 
-st.title("📄 Preventivi")
+st.markdown(
+    "<div class='page-header'><h1>📄 I Miei Preventivi</h1>"
+    "<p>Raggruppati per progetto, con lo storico delle versioni.</p></div>",
+    unsafe_allow_html=True
+)
 
 preventivi = supabase.table("preventivi").select(
     "*, progetti(indirizzo, citta, data_sopralluogo, operatore, clienti(nome, cognome_azienda, telefono, email))"
@@ -41,8 +55,6 @@ if not preventivi.data:
     st.page_link("pages/3_Nuovo_Preventivo.py", label="Crea il primo preventivo →", icon="💰")
 else:
     ricerca = st.text_input("🔍 Cerca per cliente o città")
-
-    stati_disponibili = ["bozza", "inviato", "accettato", "rifiutato"]
 
     gruppi = {}
     for pv in preventivi.data:
@@ -69,7 +81,7 @@ else:
 
         almeno_uno_mostrato = True
 
-        st.markdown(f"## 📁 {nome_completo}")
+        st.markdown(f"### 📁 {nome_completo}")
         st.caption(f"📍 {indirizzo}, {citta} — {len(lista_pv)} preventivo/i")
 
         totale_versioni = len(lista_pv)
@@ -78,20 +90,25 @@ else:
             numero_versione = totale_versioni - idx
 
             with st.container(border=True):
-                col1, col2, col3 = st.columns([3, 1, 1])
+                col1, col2, col3 = st.columns([3, 1.4, 1.6])
                 with col1:
-                    st.subheader(f"Preventivo #{numero_versione}")
-                    st.caption(f"📅 {formatta_data(pv['created_at'])}")
+                    st.markdown(
+                        f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>Preventivo #{numero_versione}</div>"
+                        f"<div style='color:var(--color-text-secondary); font-size:0.85rem;'>📅 {formatta_data(pv['created_at'])}</div>",
+                        unsafe_allow_html=True
+                    )
                     if pv.get('email_inviata_a'):
                         st.caption(f"✉️ Inviato a {pv['email_inviata_a']}")
                 with col2:
-                    st.metric("Totale finale", format_euro(pv.get('totale_finale') or 0))
+                    st.markdown(
+                        f"<div style='color:var(--color-text-secondary); font-size:0.82rem;'>Totale</div>"
+                        f"<div style='color:var(--color-primary); font-weight:700; font-size:1.1rem;'>{format_euro(pv.get('totale_finale') or 0)}</div>",
+                        unsafe_allow_html=True
+                    )
                 with col3:
-                    indice_stato = stati_disponibili.index(pv['stato']) if pv.get('stato') in stati_disponibili else 0
-                    nuovo_stato = st.selectbox("Stato", stati_disponibili, index=indice_stato, key=f"stato_{pv['id']}")
-                    if nuovo_stato != pv['stato']:
-                        supabase.table("preventivi").update({"stato": nuovo_stato}).eq("id", pv['id']).execute()
-                        st.rerun()
+                    st.markdown(stato_badge(pv['stato']), unsafe_allow_html=True)
+                    if st.button("Cambia stato", key=f"stato_{pv['id']}", use_container_width=True):
+                        dialog_cambia_stato(pv['id'], pv['stato'])
 
                 with st.expander("Vedi dettaglio"):
                     prezzi = supabase.table("preventivo_prezzi_tipologia").select("*").eq("preventivo_id", pv['id']).execute()
@@ -126,7 +143,7 @@ else:
 
                     col_pdf, col_elimina = st.columns(2)
                     with col_pdf:
-                        if st.button("📄 Genera PDF", key=f"genera_pdf_{pv['id']}"):
+                        if st.button("📄 Genera PDF", key=f"genera_pdf_{pv['id']}", use_container_width=True, type="primary"):
                             with st.spinner("Generazione PDF in corso..."):
                                 progetto_per_pdf = {**progetto_info, "id": pv['progetto_id']}
                                 contesto = costruisci_contesto_pdf(
@@ -140,63 +157,14 @@ else:
                                     sconto=pv.get('sconti') or 0,
                                     totale_finale=pv.get('totale_finale') or 0
                                 )
-                                st.session_state[f"pdf_pronto_{pv['id']}"] = genera_pdf_preventivo(contesto)
-                                st.session_state[f"pdf_contesto_{pv['id']}"] = contesto
-
-                        if f"pdf_pronto_{pv['id']}" in st.session_state:
-                            st.download_button(
-                                "📥 Scarica PDF",
-                                data=st.session_state[f"pdf_pronto_{pv['id']}"],
-                                file_name=f"preventivo_{slug(nome_completo)}_v{numero_versione}.pdf",
-                                mime="application/pdf",
-                                key=f"download_pdf_{pv['id']}"
+                                pdf_buffer = genera_pdf_preventivo(contesto)
+                            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}_v{numero_versione}.pdf")
+                            dialog_dopo_generazione_preventivo(
+                                pv['id'], pdf_buffer, contesto, clienti_info, nome_completo, indirizzo, citta
                             )
                     with col_elimina:
-                        if st.button("🗑️ Elimina questo preventivo", key=f"elimina_pv_{pv['id']}"):
+                        if st.button("🗑️ Elimina questo preventivo", key=f"elimina_pv_{pv['id']}", use_container_width=True):
                             conferma_eliminazione_preventivo(pv['id'], f"Preventivo #{numero_versione} di {nome_completo}")
-
-                    if f"pdf_pronto_{pv['id']}" in st.session_state:
-                        st.divider()
-                        st.write("**✉️ Invia via email**")
-
-                        contesto_pv = st.session_state[f"pdf_contesto_{pv['id']}"]
-                        email_default = clienti_info.get('email') or ""
-                        destinatario = st.text_input("Email destinatario", value=email_default, key=f"email_dest_{pv['id']}")
-                        oggetto = st.text_input("Oggetto", value=f"Preventivo n. {contesto_pv['numero_preventivo']} - {contesto_pv['azienda_nome']}", key=f"email_ogg_{pv['id']}")
-                        corpo = st.text_area(
-                            "Messaggio",
-                            value=(
-                                f"Gentile {nome_completo},\n\n"
-                                f"In allegato il preventivo n. {contesto_pv['numero_preventivo']} del {contesto_pv['data']} "
-                                f"per i lavori presso {indirizzo}, {citta}.\n\n"
-                                f"Totale: {contesto_pv['totale_finale']}\n\n"
-                                f"Restiamo a disposizione per qualsiasi chiarimento.\n\n"
-                                f"Cordiali saluti,\n{contesto_pv['azienda_nome']}"
-                            ),
-                            height=180,
-                            key=f"email_corpo_{pv['id']}"
-                        )
-
-                        if st.button("✉️ Invia email", key=f"invia_email_{pv['id']}"):
-                            if not destinatario:
-                                st.warning("Inserisci l'indirizzo email del destinatario.")
-                            else:
-                                try:
-                                    with st.spinner("Invio email in corso..."):
-                                        invia_email_preventivo(
-                                            destinatario, oggetto, corpo,
-                                            st.session_state[f"pdf_pronto_{pv['id']}"],
-                                            f"preventivo_{slug(nome_completo)}.pdf"
-                                        )
-                                        supabase.table("preventivi").update({
-                                            "email_inviata_a": destinatario,
-                                            "email_inviata_il": datetime.now(timezone.utc).isoformat(),
-                                            "stato": "inviato"
-                                        }).eq("id", pv['id']).execute()
-                                    st.success(f"Email inviata a {destinatario}!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Errore nell'invio: {e}")
 
         st.divider()
 
