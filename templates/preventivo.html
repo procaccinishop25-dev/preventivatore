@@ -1,1 +1,172 @@
+<html>
+<head>
+<style>
+    @page {
+        size: A4;
+        margin: 2cm 1.5cm;
+    }
+    body {
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 10pt;
+        color: #1F2937;
+    }
+    .header {
+        border-bottom: 2px solid #2563EB;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .header h1 {
+        color: #2563EB;
+        font-size: 18pt;
+        margin: 0;
+    }
+    .header .contatti {
+        font-size: 9pt;
+        color: #555;
+    }
+    .info-doc {
+        text-align: right;
+        font-size: 9pt;
+        color: #555;
+    }
+    .sezione-titolo {
+        background-color: #F3F4F6;
+        padding: 6px 10px;
+        font-weight: bold;
+        font-size: 11pt;
+        margin-top: 15px;
+        margin-bottom: 8px;
+    }
+    table.dati {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+    }
+    table.dati td {
+        padding: 3px 0;
+        font-size: 10pt;
+    }
+    table.infissi {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+    }
+    table.infissi th {
+        background-color: #2563EB;
+        color: white;
+        padding: 6px;
+        font-size: 9pt;
+        text-align: left;
+    }
+    table.infissi td {
+        padding: 6px;
+        border-bottom: 1px solid #E5E7EB;
+        font-size: 9pt;
+        vertical-align: top;
+    }
+    table.riepilogo {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    table.riepilogo td {
+        padding: 5px 8px;
+        font-size: 10pt;
+        border-bottom: 1px solid #E5E7EB;
+    }
+    table.riepilogo .totale-finale td {
+        font-size: 13pt;
+        font-weight: bold;
+        color: #2563EB;
+        border-top: 2px solid #2563EB;
+        border-bottom: none;
+        padding-top: 8px;
+    }
+    .footer {
+        margin-top: 20px;
+        font-size: 8pt;
+        color: #888;
+        text-align: center;
+        border-top: 1px solid #E5E7EB;
+        padding-top: 8px;
+    }
+    img.thumb {
+        width: 50px;
+        max-height: 50px;
+    }
+</style>
+</head>
+<body>
 
+    <table style="width:100%; border:none;">
+        <tr>
+            <td class="header" style="border-right:none; width:60%;">
+                <h1>{{ azienda_nome }}</h1>
+                <div class="contatti">{{ azienda_contatti }}</div>
+            </td>
+            <td class="header" style="width:40%;">
+                <div class="info-doc">
+                    <strong>Preventivo n. {{ numero_preventivo }}</strong><br/>
+                    Data: {{ data }}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="sezione-titolo">Cliente</div>
+    <table class="dati">
+        <tr><td><strong>Nome:</strong> {{ cliente_nome }}</td></tr>
+        <tr><td><strong>Telefono:</strong> {{ cliente_telefono or "-" }}</td></tr>
+        <tr><td><strong>Email:</strong> {{ cliente_email or "-" }}</td></tr>
+    </table>
+
+    <div class="sezione-titolo">Progetto e Sopralluogo</div>
+    <table class="dati">
+        <tr><td><strong>Cantiere:</strong> {{ progetto_indirizzo }}, {{ progetto_citta }}</td></tr>
+        <tr><td><strong>Data sopralluogo:</strong> {{ data_sopralluogo or "-" }}</td></tr>
+        <tr><td><strong>Operatore:</strong> {{ operatore or "-" }}</td></tr>
+        <tr><td><strong>Numero infissi:</strong> {{ numero_infissi }} — <strong>Superficie totale:</strong> {{ superficie_totale }} m²</td></tr>
+    </table>
+
+    <div class="sezione-titolo">Dettaglio Infissi</div>
+    <table class="infissi">
+        <tr>
+            <th>Infisso</th>
+            <th>Misure</th>
+            <th>m²</th>
+            <th>Prezzo €/m²</th>
+            <th>Subtotale</th>
+            <th>Foto</th>
+            <th>Schizzo</th>
+        </tr>
+        {% for inf in infissi %}
+        <tr>
+            <td>{{ inf.nome }}</td>
+            <td>{{ inf.misure }}</td>
+            <td>{{ inf.mq }}</td>
+            <td>{{ inf.prezzo_mq }}</td>
+            <td>{{ inf.subtotale }}</td>
+            <td>{% if inf.foto_url %}<img class="thumb" src="{{ inf.foto_url }}" />{% endif %}</td>
+            <td>{% if inf.schizzo_url %}<img class="thumb" src="{{ inf.schizzo_url }}" />{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="sezione-titolo">Riepilogo Economico</div>
+    <table class="riepilogo">
+        <tr><td>Totale base</td><td style="text-align:right;">{{ totale_base }}</td></tr>
+        {% for m in maggiorazioni %}
+        <tr><td>{{ m.descrizione }}</td><td style="text-align:right;">{{ m.importo }}</td></tr>
+        {% endfor %}
+        {% if sconto and sconto != "0,00 €" %}
+        <tr><td>Sconto</td><td style="text-align:right;">-{{ sconto }}</td></tr>
+        {% endif %}
+        <tr class="totale-finale"><td>TOTALE FINALE</td><td style="text-align:right;">{{ totale_finale }}</td></tr>
+    </table>
+
+    <div class="footer">
+        {{ azienda_nome }} — Preventivo generato il {{ data }} — Documento non fiscale, valido come proposta commerciale
+    </div>
+
+</body>
+</html>
