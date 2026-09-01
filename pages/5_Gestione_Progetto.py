@@ -506,48 +506,49 @@ else:
             dialog_aggiungi_infisso(progetto_id, cartella_progetto)
 
     if lista_infissi:
-        for inf in lista_infissi:
-            nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
+        with st.expander(f"🪟 Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
+            for inf in lista_infissi:
+                nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
 
-            with st.container(border=True):
-                col_info, col_azioni = st.columns([3, 1.4])
-                with col_info:
-                    badge_riga = ""
-                    if inf.get('foto_url'):
-                        badge_riga += badge("📷 Foto", "info") + " "
-                    if inf.get('schizzo_url'):
-                        badge_riga += badge("✏️ Schizzo", "info")
+                with st.container(border=True):
+                    col_info, col_azioni = st.columns([3, 1.4])
+                    with col_info:
+                        badge_riga = ""
+                        if inf.get('foto_url'):
+                            badge_riga += badge("📷 Foto", "info") + " "
+                        if inf.get('schizzo_url'):
+                            badge_riga += badge("✏️ Schizzo", "info")
 
-                    st.markdown(
-                        f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
-                        f"<div style='color:var(--color-text-secondary); font-size:0.85rem; margin:2px 0 4px 0;'>"
-                        f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm &nbsp;·&nbsp; "
-                        f"<span style='color:var(--color-primary); font-weight:600;'>{inf['mq']} m²</span></div>"
-                        f"{badge_riga}",
-                        unsafe_allow_html=True
-                    )
-                with col_azioni:
-                    b1, b2 = st.columns(2)
-                    with b1:
-                        if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
-                            dialog_dettagli_infisso(inf, cartella_progetto)
-                    with b2:
-                        if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
-                            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
-                            numero_nuovo = len(esistenti.data) + 1
-                            nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
-                            supabase.table("infissi").insert({
-                                "progetto_id": progetto_id,
-                                "tipologia": inf['tipologia'],
-                                "numero_infisso": numero_nuovo,
-                                "nome": nome_nuovo,
-                                "larghezza_cm": inf['larghezza_cm'],
-                                "altezza_cm": inf['altezza_cm'],
-                                "quantita": 1,
-                                "note": inf['note']
-                            }).execute()
-                            st.success(f"Creato {nome_nuovo}")
-                            st.rerun()
+                        st.markdown(
+                            f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
+                            f"<div style='color:var(--color-text-secondary); font-size:0.85rem; margin:2px 0 4px 0;'>"
+                            f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm &nbsp;·&nbsp; "
+                            f"<span style='color:var(--color-primary); font-weight:600;'>{inf['mq']} m²</span></div>"
+                            f"{badge_riga}",
+                            unsafe_allow_html=True
+                        )
+                    with col_azioni:
+                        b1, b2 = st.columns(2)
+                        with b1:
+                            if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
+                                dialog_dettagli_infisso(inf, cartella_progetto)
+                        with b2:
+                            if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
+                                esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
+                                numero_nuovo = len(esistenti.data) + 1
+                                nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
+                                supabase.table("infissi").insert({
+                                    "progetto_id": progetto_id,
+                                    "tipologia": inf['tipologia'],
+                                    "numero_infisso": numero_nuovo,
+                                    "nome": nome_nuovo,
+                                    "larghezza_cm": inf['larghezza_cm'],
+                                    "altezza_cm": inf['altezza_cm'],
+                                    "quantita": 1,
+                                    "note": inf['note']
+                                }).execute()
+                                st.success(f"Creato {nome_nuovo}")
+                                st.rerun()
     else:
         st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
 
