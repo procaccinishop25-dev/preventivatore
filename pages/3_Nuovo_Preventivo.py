@@ -67,7 +67,17 @@ else:
         f"{p['clienti']['nome']} {p['clienti']['cognome_azienda']} - {p['indirizzo']}, {p['citta']}": p['id']
         for p in progetti.data
     }
-    scelta = st.selectbox("Seleziona progetto", list(opzioni.keys()))
+
+    lista_opzioni = list(opzioni.keys())
+    indice_default = 0
+    preselect_id = st.session_state.pop("preventivo_preseleziona_id", None)
+    if preselect_id:
+        for idx, (label, pid) in enumerate(opzioni.items()):
+            if pid == preselect_id:
+                indice_default = idx
+                break
+
+    scelta = st.selectbox("Seleziona progetto", lista_opzioni, index=indice_default)
     progetto_id = opzioni[scelta]
     progetto_selezionato = next(p for p in progetti.data if p['id'] == progetto_id)
     nome_cliente_progetto = f"{progetto_selezionato['clienti']['nome']} {progetto_selezionato['clienti']['cognome_azienda']}"
@@ -303,7 +313,6 @@ else:
                 mime="application/pdf"
             )
 
-        # --- Sezione invio email, disponibile dopo aver salvato e generato il PDF ---
         if st.session_state.get("ultimo_preventivo_pdf") is not None:
             st.divider()
             st.subheader("✉️ Invia il preventivo via email")
