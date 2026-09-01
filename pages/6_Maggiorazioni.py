@@ -1,9 +1,9 @@
 import streamlit as st
 from services.supabase import supabase
 
-st.set_page_config(page_title="Maggiorazioni", page_icon="⚙️")
+st.set_page_config(page_title="Aggiungi regole personalizzate", page_icon="⚙️")
 
-st.title("⚙️ Maggiorazioni predefinite")
+st.title("⚙️ Aggiungi regole personalizzate")
 st.caption("Gestisci qui le maggiorazioni standard selezionabili in ogni preventivo (es. Smontaggio, Piano alto...).")
 
 st.subheader("➕ Aggiungi nuova maggiorazione")
@@ -66,6 +66,4 @@ else:
                         st.success("Aggiornata!")
                         st.rerun()
                 with col_elimina:
-                    if st.button("🗑️", key=f"elimina_magg_{m['id']}"):
-                        supabase.table("maggiorazioni").delete().eq("id", m['id']).execute()
-                        st.rerun()
+                    if
