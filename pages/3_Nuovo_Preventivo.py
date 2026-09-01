@@ -1,23 +1,9 @@
 import streamlit as st
 from services.supabase import supabase
+from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, format_euro, slug
 import pandas as pd
 import io
-import re
-
-
-def slug(testo):
-    testo = (testo or "").strip().replace(" ", "_")
-    return re.sub(r"[^A-Za-z0-9_-]", "", testo)
-
-
-def format_num(x, decimali=2):
-    return f"{x:.{decimali}f}".replace(".", ",")
-
-
-def format_euro(x):
-    s = f"{x:,.2f}"
-    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
-    return f"{s} €"
+from datetime import date
 
 
 def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_riepilogo_excel, mq_totale_progetto):
@@ -35,6 +21,10 @@ def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_riepilogo_exce
 
     buffer.seek(0)
     return buffer
+
+
+def format_num(x, decimali=2):
+    return f"{x:.{decimali}f}".replace(".", ",")
 
 
 @st.dialog("Applica maggiorazione")
@@ -64,7 +54,9 @@ st.set_page_config(page_title="Nuovo Preventivo", page_icon="💰")
 
 st.title("💰 Nuovo Preventivo")
 
-progetti = supabase.table("progetti").select("id, indirizzo, citta, clienti(nome, cognome_azienda)").execute()
+progetti = supabase.table("progetti").select(
+    "id, indirizzo, citta, data_sopralluogo, operatore, clienti(nome, cognome_azienda, telefono, email)"
+).execute()
 
 if not progetti.data:
     st.info("Nessun progetto disponibile.")
@@ -148,6 +140,7 @@ else:
         mq_totale_progetto = sum(info["mq_totali"] for info in tipologie.values())
 
         righe_riepilogo = []
+        maggiorazioni_righe_pdf = []
 
         for t, info in tipologie.items():
             prezzo = prezzi_tipologia[t]
@@ -193,11 +186,13 @@ else:
             totale_maggiorazioni += importo_calc
             righe_riepilogo.append({"voce": m['descrizione'], "calcolo": calcolo_str, "totale": importo_calc, "bold": False})
 
+            riferimento_pdf = f" ({riferimento})" if infisso_id_appl else ""
+            maggiorazioni_righe_pdf.append({"descrizione": f"{m['descrizione']}{riferimento_pdf}", "importo": format_euro(importo_calc)})
+
         righe_riepilogo.append({"voce": "Maggiorazioni", "calcolo": "", "totale": totale_maggiorazioni, "bold": True})
 
         subtotale_pre_sconto = totale_base + totale_maggiorazioni
 
-        # --- Sconto ---
         st.subheader("💸 Sconto (opzionale)")
         col_sconto_val, col_sconto_tipo = st.columns(2)
         with col_sconto_val:
@@ -280,3 +275,26 @@ else:
             st.session_state["magg_prev_stato"] = {}
             st.success(f"Preventivo salvato! Totale: {format_euro(totale_finale)}")
             st.balloons()
+
+            with st.spinner("Generazione PDF in corso..."):
+                oggi = date.today()
+                data_formattata = f"{oggi.day:02d}/{oggi.month:02d}/{oggi.year}"
+                contesto = costruisci_contesto_pdf(
+                    numero_preventivo=preventivo_id[:8].upper(),
+                    data=data_formattata,
+                    progetto={**progetto_selezionato, "id": progetto_id},
+                    cliente=progetto_selezionato['clienti'],
+                    prezzi_tipologia=prezzi_tipologia,
+                    maggiorazioni_righe=maggiorazioni_righe_pdf,
+                    totale_base=totale_base,
+                    sconto=sconto_calcolato,
+                    totale_finale=totale_finale
+                )
+                pdf_buffer = genera_pdf_preventivo(contesto)
+
+            st.download_button(
+                "📥 Scarica PDF preventivo",
+                data=pdf_buffer,
+                file_name=f"preventivo_{slug(nome_cliente_progetto)}.pdf",
+                mime="application/pdf"
+            )
