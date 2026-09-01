@@ -272,8 +272,6 @@ else:
                     "infisso_id": info_appl.get('infisso_id')
                 }).execute()
 
-            st.session_state["magg_applicazione"] = {}
-            st.session_state["magg_prev_stato"] = {}
             st.session_state["ultimo_preventivo_id"] = preventivo_id
             st.session_state["ultimo_preventivo_pdf"] = None
 
