@@ -185,4 +185,28 @@ def dialog_dopo_generazione_preventivo(preventivo_id, pdf_buffer, contesto, clie
                 f"In allegato il preventivo n. {contesto['numero_preventivo']} del {contesto['data']} "
                 f"per i lavori presso {indirizzo}, {citta}.\n\n"
                 f"Totale: {contesto['totale_finale']}\n\n"
-                f"Restiamo a
+                f"Restiamo a disposizione per qualsiasi chiarimento.\n\n"
+                f"Cordiali saluti,\n{contesto['azienda_nome']}"
+            ),
+            height=180,
+            key=f"corpo_quick_{preventivo_id}"
+        )
+
+        if st.button("✉️ Invia email", type="primary", use_container_width=True, key=f"invia_btn_quick_{preventivo_id}"):
+            if not destinatario:
+                st.warning("Inserisci l'indirizzo email del destinatario.")
+            else:
+                try:
+                    pdf_buffer.seek(0)
+                    invia_email_preventivo(destinatario, oggetto, corpo, pdf_buffer, f"preventivo_{slug(nome_cliente_display)}.pdf")
+                    supabase.table("preventivi").update({
+                        "email_inviata_a": destinatario,
+                        "email_inviata_il": datetime.now(timezone.utc).isoformat(),
+                        "stato": "inviato"
+                    }).eq("id", preventivo_id).execute()
+                    st.success(f"Email inviata a {destinatario}!")
+                except Exception as e:
+                    st.error(f"Errore nell'invio: {e}")
+    else:
+        if st.button("Chiudi", use_container_width=True, key=f"chiudi_quick_{preventivo_id}"):
+            st.rerun()
