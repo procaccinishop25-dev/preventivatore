@@ -284,6 +284,42 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                         st.session_state["foto_catturate"] = []
                         st.rerun()
 
+    st.divider()
+    st.caption("✏️ Schizzo (opzionale) — con più pezzi, viene salvato solo sul primo")
+    mostra_schizzo_creazione = st.checkbox("Aggiungi anche uno schizzo", key=f"mostra_schizzo_new_{contatore}")
+
+    canvas_schizzo_result = None
+    if mostra_schizzo_creazione:
+        strumento_s = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_new_{contatore}")
+
+        if strumento_s == "Penna":
+            spessore_s = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_new_{contatore}")
+            colore_s = "#000000"
+            modalita_s = "freedraw"
+        elif strumento_s == "Gomma":
+            spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_new_{contatore}")
+            colore_s = "#FFFFFF"
+            modalita_s = "freedraw"
+        else:
+            spessore_s = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_new_{contatore}")
+            colore_s = "#000000"
+            modalita_s = "line"
+
+        if strumento_s == "Linea dritta":
+            st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
+
+        canvas_schizzo_result = st_canvas(
+            fill_color="rgba(255, 255, 255, 0)",
+            stroke_width=spessore_s,
+            stroke_color=colore_s,
+            background_color="#FFFFFF",
+            height=300,
+            width=440,
+            drawing_mode=modalita_s,
+            display_toolbar=True,
+            key=f"canvas_new_{contatore}"
+        )
+
     st.write("")
     if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
         lista_foto = []
@@ -316,6 +352,12 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
             if idx < len(lista_foto):
                 foto = lista_foto[idx]
                 carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
+
+        if mostra_schizzo_creazione and canvas_schizzo_result is not None and canvas_schizzo_result.image_data is not None and id_infissi_creati:
+            primo_id, primo_nome = id_infissi_creati[0]
+            salva_schizzo(canvas_schizzo_result.image_data, cartella_progetto, primo_nome, "infissi", primo_id)
+            if int(quantita) > 1:
+                st.info(f"Schizzo associato solo a **{primo_nome}**. Per gli altri, usa Modifica → Schizzo.")
 
         st.session_state["foto_key_counter"] += 1
         st.session_state["foto_catturate"] = []
@@ -514,7 +556,7 @@ else:
 
     st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
 
-    if st.button("💰 Genera preventivo per questo progetto con regole preimpostate", type="primary", use_container_width=True):
+    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
         if num_infissi_tot == 0:
             st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
         else:
