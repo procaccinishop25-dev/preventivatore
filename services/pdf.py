@@ -1,8 +1,13 @@
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
 from services.supabase import supabase
+from services.email import invia_email_preventivo
+import streamlit as st
+import streamlit.components.v1 as components
+from datetime import date, datetime, timezone
 import io
 import re
+import base64
 
 
 def slug(testo):
@@ -90,3 +95,94 @@ def genera_pdf_preventivo(contesto):
     pisa.CreatePDF(html_renderizzato, dest=buffer)
     buffer.seek(0)
     return buffer
+
+
+def trigger_download_automatico(pdf_bytes, filename):
+    """Avvia automaticamente il download del PDF nel browser, senza bisogno di un click aggiuntivo."""
+    b64 = base64.b64encode(pdf_bytes).decode()
+    html = f"""
+    <html><body>
+    <a id="auto_dl" href="data:application/pdf;base64,{b64}" download="{filename}" style="display:none;"></a>
+    <script>document.getElementById('auto_dl').click();</script>
+    </body></html>
+    """
+    components.html(html, height=0, width=0)
+
+
+def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_default=400.0):
+    """Genera un preventivo con prezzo standard per tutte le tipologie, senza maggiorazioni/sconti."""
+    infissi_db = supabase.table("infissi").select("tipologia, mq, quantita").eq("progetto_id", progetto_id).execute()
+    righe_infissi = infissi_db.data or []
+
+    tipologie = sorted(set(i['tipologia'] for i in righe_infissi))
+    prezzi_tipologia = {t: prezzo_default for t in tipologie}
+
+    totale_base = sum(i['mq'] * i['quantita'] * prezzo_default for i in righe_infissi)
+
+    preventivo = supabase.table("preventivi").insert({
+        "progetto_id": progetto_id,
+        "totale_base": totale_base,
+        "sconti": 0,
+        "totale_finale": totale_base,
+        "stato": "bozza"
+    }).execute()
+    preventivo_id = preventivo.data[0]["id"]
+
+    for t, prezzo in prezzi_tipologia.items():
+        supabase.table("preventivo_prezzi_tipologia").insert({
+            "preventivo_id": preventivo_id,
+            "tipologia": t,
+            "prezzo_mq": prezzo
+        }).execute()
+
+    oggi = date.today()
+    data_formattata = f"{oggi.day:02d}/{oggi.month:02d}/{oggi.year}"
+
+    contesto = costruisci_contesto_pdf(
+        numero_preventivo=preventivo_id[:8].upper(),
+        data=data_formattata,
+        progetto=progetto_info,
+        cliente=cliente_info,
+        prezzi_tipologia=prezzi_tipologia,
+        maggiorazioni_righe=[],
+        totale_base=totale_base,
+        sconto=0,
+        totale_finale=totale_base
+    )
+    pdf_buffer = genera_pdf_preventivo(contesto)
+
+    return preventivo_id, pdf_buffer, contesto
+
+
+@st.dialog("✅ Preventivo generato", width="large")
+def dialog_dopo_generazione_preventivo(preventivo_id, pdf_buffer, contesto, cliente_info, nome_cliente_display, indirizzo, citta):
+    st.success(f"Totale: {contesto['totale_finale']}")
+    st.caption(
+        "Il download del PDF è partito automaticamente. Prezzo standard 400 €/m², nessuna maggiorazione — "
+        "puoi personalizzarlo in qualsiasi momento da \"Nuovo Preventivo\"."
+    )
+
+    st.divider()
+    invia_ora = st.radio(
+        "Vuoi inviarlo subito via email al cliente?",
+        ["Non ora", "Sì, invia subito"],
+        horizontal=True,
+        key=f"invia_scelta_{preventivo_id}"
+    )
+
+    if invia_ora == "Sì, invia subito":
+        email_default = cliente_info.get('email') or ""
+        destinatario = st.text_input("Email destinatario", value=email_default, key=f"dest_quick_{preventivo_id}")
+        oggetto = st.text_input(
+            "Oggetto",
+            value=f"Preventivo n. {contesto['numero_preventivo']} - {contesto['azienda_nome']}",
+            key=f"ogg_quick_{preventivo_id}"
+        )
+        corpo = st.text_area(
+            "Messaggio",
+            value=(
+                f"Gentile {nome_cliente_display},\n\n"
+                f"In allegato il preventivo n. {contesto['numero_preventivo']} del {contesto['data']} "
+                f"per i lavori presso {indirizzo}, {citta}.\n\n"
+                f"Totale: {contesto['totale_finale']}\n\n"
+                f"Restiamo a
