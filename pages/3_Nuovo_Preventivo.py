@@ -1,27 +1,8 @@
 import streamlit as st
 from services.supabase import supabase
-from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, format_euro, slug
-from services.email import invia_email_preventivo
-import pandas as pd
-import io
-from datetime import date, datetime, timezone
-
-
-def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_riepilogo_excel, mq_totale_progetto):
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_riepilogo = pd.DataFrame(righe_riepilogo_excel)
-        df_riepilogo.to_excel(writer, sheet_name='Riepilogo', index=False)
-
-        df_intestazione = pd.DataFrame([
-            {"Campo": "Cliente", "Valore": nome_cliente},
-            {"Campo": "Indirizzo", "Valore": f"{indirizzo}, {citta}"},
-            {"Campo": "Superficie totale (m²)", "Valore": round(mq_totale_progetto, 2)},
-        ])
-        df_intestazione.to_excel(writer, sheet_name='Dati progetto', index=False)
-
-    buffer.seek(0)
-    return buffer
+from services.theme import apply_custom_theme
+from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, trigger_download_automatico, dialog_dopo_generazione_preventivo, format_euro, slug
+from datetime import date
 
 
 def format_num(x, decimali=2):
@@ -46,14 +27,19 @@ def dialog_applicazione_maggiorazione(m, lista_infissi):
         infisso_id = opzioni_infissi[nome_scelto]
         infisso_nome = nome_scelto
 
-    if st.button("Conferma", key=f"dialog_conferma_{m['id']}"):
+    if st.button("Conferma", type="primary", use_container_width=True, key=f"dialog_conferma_{m['id']}"):
         st.session_state["magg_applicazione"][m['id']] = {"infisso_id": infisso_id, "infisso_nome": infisso_nome}
         st.rerun()
 
 
 st.set_page_config(page_title="Nuovo Preventivo", page_icon="💰")
+apply_custom_theme()
 
-st.title("💰 Nuovo Preventivo")
+st.markdown(
+    "<div class='page-header'><h1>💰 Nuovo Preventivo</h1>"
+    "<p>Imposta prezzi e maggiorazioni, poi genera subito il PDF.</p></div>",
+    unsafe_allow_html=True
+)
 
 progetti = supabase.table("progetti").select(
     "id, indirizzo, citta, data_sopralluogo, operatore, clienti(nome, cognome_azienda, telefono, email)"
@@ -95,58 +81,70 @@ else:
             tipologie[t]["mq_totali"] += inf['mq'] * inf['quantita']
             tipologie[t]["count"] += inf['quantita']
 
-        st.subheader("💶 Prezzo base per tipologia")
-        prezzi_tipologia = {}
-        for t, info in tipologie.items():
-            prezzi_tipologia[t] = st.number_input(
-                f"{t} — {info['count']} pezzi, {info['mq_totali']:.2f} m² totali (€/m²)",
-                min_value=0.0, value=400.0, step=10.0, key=f"prezzo_{t}"
-            )
+        st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
-        st.divider()
-        st.subheader("➕ Maggiorazioni predefinite")
+        with st.container(border=True):
+            st.markdown("#### 💶 Prezzo per tipologia")
+            prezzi_tipologia = {}
+            for t, info in tipologie.items():
+                prezzi_tipologia[t] = st.number_input(
+                    f"{t} — {info['count']} pezzi, {info['mq_totali']:.2f} m² totali (€/m²)",
+                    min_value=0.0, value=400.0, step=10.0, key=f"prezzo_{t}"
+                )
 
-        if "magg_applicazione" not in st.session_state:
-            st.session_state["magg_applicazione"] = {}
-        if "magg_prev_stato" not in st.session_state:
-            st.session_state["magg_prev_stato"] = {}
+        with st.container(border=True):
+            st.markdown("#### ➕ Maggiorazioni")
 
-        maggiorazioni_disponibili = supabase.table("maggiorazioni").select("*").order("descrizione").execute()
+            if "magg_applicazione" not in st.session_state:
+                st.session_state["magg_applicazione"] = {}
+            if "magg_prev_stato" not in st.session_state:
+                st.session_state["magg_prev_stato"] = {}
 
-        maggiorazioni_selezionate = []
-        if maggiorazioni_disponibili.data:
-            for m in maggiorazioni_disponibili.data:
-                etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
+            maggiorazioni_disponibili = supabase.table("maggiorazioni").select("*").order("descrizione").execute()
 
-                stato_precedente = st.session_state["magg_prev_stato"].get(m['id'], False)
-                selezionata = st.checkbox(f"{m['descrizione']} (+{m['importo']} {etichetta_tipo})", key=f"magg_{m['id']}")
-                appena_selezionata = selezionata and not stato_precedente
-                st.session_state["magg_prev_stato"][m['id']] = selezionata
+            maggiorazioni_selezionate = []
+            if maggiorazioni_disponibili.data:
+                for m in maggiorazioni_disponibili.data:
+                    etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
 
-                if not selezionata:
-                    st.session_state["magg_applicazione"].pop(m['id'], None)
+                    stato_precedente = st.session_state["magg_prev_stato"].get(m['id'], False)
+                    selezionata = st.checkbox(f"{m['descrizione']} (+{m['importo']} {etichetta_tipo})", key=f"magg_{m['id']}")
+                    appena_selezionata = selezionata and not stato_precedente
+                    st.session_state["magg_prev_stato"][m['id']] = selezionata
 
-                if appena_selezionata:
-                    dialog_applicazione_maggiorazione(m, infissi.data)
+                    if not selezionata:
+                        st.session_state["magg_applicazione"].pop(m['id'], None)
 
-                if selezionata:
-                    info_appl = st.session_state["magg_applicazione"].get(m['id'])
-                    col_info, col_modifica = st.columns([4, 1])
-                    with col_info:
-                        if info_appl and info_appl.get('infisso_id'):
-                            st.caption(f"↳ applicata solo su: **{info_appl['infisso_nome']}**")
-                        else:
-                            st.caption("↳ applicata su tutti gli infissi")
-                    with col_modifica:
-                        if st.button("✏️", key=f"modifica_appl_{m['id']}"):
-                            dialog_applicazione_maggiorazione(m, infissi.data)
-                    maggiorazioni_selezionate.append(m)
-        else:
-            st.caption("Nessuna maggiorazione predefinita configurata.")
-        st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon="➕")
+                    if appena_selezionata:
+                        dialog_applicazione_maggiorazione(m, infissi.data)
 
-        st.divider()
+                    if selezionata:
+                        info_appl = st.session_state["magg_applicazione"].get(m['id'])
+                        col_info, col_modifica = st.columns([4, 1])
+                        with col_info:
+                            if info_appl and info_appl.get('infisso_id'):
+                                st.caption(f"↳ applicata solo su: **{info_appl['infisso_nome']}**")
+                            else:
+                                st.caption("↳ applicata su tutti gli infissi")
+                        with col_modifica:
+                            if st.button("✏️", key=f"modifica_appl_{m['id']}"):
+                                dialog_applicazione_maggiorazione(m, infissi.data)
+                        maggiorazioni_selezionate.append(m)
+            else:
+                st.caption("Nessuna maggiorazione predefinita configurata.")
+            st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon="➕")
 
+        with st.container(border=True):
+            st.markdown("#### 💸 Sconto")
+            col_sconto_val, col_sconto_tipo = st.columns(2)
+            with col_sconto_val:
+                valore_sconto = st.number_input("Valore sconto", min_value=0.0, step=1.0, key="valore_sconto")
+            with col_sconto_tipo:
+                tipo_sconto = st.selectbox("Tipo sconto", ["Nessuno", "€ fisso", "%"], key="tipo_sconto")
+
+        st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
+        # --- Calcolo (identico a prima) ---
         totale_base = sum(prezzi_tipologia[t] * info["mq_totali"] for t, info in tipologie.items())
         mq_totale_progetto = sum(info["mq_totali"] for info in tipologie.values())
 
@@ -204,13 +202,6 @@ else:
 
         subtotale_pre_sconto = totale_base + totale_maggiorazioni
 
-        st.subheader("💸 Sconto (opzionale)")
-        col_sconto_val, col_sconto_tipo = st.columns(2)
-        with col_sconto_val:
-            valore_sconto = st.number_input("Valore sconto", min_value=0.0, step=1.0, key="valore_sconto")
-        with col_sconto_tipo:
-            tipo_sconto = st.selectbox("Tipo sconto", ["Nessuno", "€ fisso", "%"], key="tipo_sconto")
-
         sconto_calcolato = 0.0
         if tipo_sconto == "€ fisso":
             sconto_calcolato = valore_sconto
@@ -228,36 +219,27 @@ else:
 
         righe_riepilogo.append({"voce": "Totale finale", "calcolo": "", "totale": totale_finale, "bold": True})
 
-        st.divider()
-        st.subheader("📊 Riepilogo — calcolo automatico")
-
-        righe_md = ["| Voce | Calcolo | Totale |", "|---|---|---|"]
-        for r in righe_riepilogo:
-            voce = f"**{r['voce']}**" if r['bold'] else r['voce']
-            totale_fmt = f"**{format_euro(r['totale'])}**" if r['bold'] else format_euro(r['totale'])
-            righe_md.append(f"| {voce} | {r['calcolo']} | {totale_fmt} |")
-
-        st.markdown("\n".join(righe_md))
-
-        st.divider()
-
-        righe_riepilogo_excel = [
-            {"Voce": r["voce"], "Calcolo": r["calcolo"], "Totale €": round(r["totale"], 2)}
-            for r in righe_riepilogo
-        ]
-
-        excel_buffer = genera_excel_preventivo(
-            nome_cliente_progetto, progetto_selezionato['indirizzo'], progetto_selezionato['citta'],
-            righe_riepilogo_excel, mq_totale_progetto
-        )
-        st.download_button(
-            "📥 Scarica riepilogo Excel",
-            data=excel_buffer,
-            file_name=f"preventivo_{slug(nome_cliente_progetto)}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        # --- Totale in evidenza + dettaglio nascosto ---
+        st.markdown(
+            f"<div style='background-color:var(--color-primary-light); border:1px solid var(--color-border); "
+            f"border-radius:10px; padding:1.2rem 1.4rem; margin:0.3rem 0 0.8rem 0;'>"
+            f"<div style='color:var(--color-text-secondary); font-size:0.85rem; font-weight:500;'>Totale preventivo</div>"
+            f"<div style='color:var(--color-primary); font-size:2rem; font-weight:800; margin-top:2px;'>{format_euro(totale_finale)}</div>"
+            f"</div>",
+            unsafe_allow_html=True
         )
 
-        if st.button("💾 Salva preventivo"):
+        with st.expander("📊 Vedi dettaglio del calcolo"):
+            righe_md = ["| Voce | Calcolo | Totale |", "|---|---|---|"]
+            for r in righe_riepilogo:
+                voce = f"**{r['voce']}**" if r['bold'] else r['voce']
+                totale_fmt = f"**{format_euro(r['totale'])}**" if r['bold'] else format_euro(r['totale'])
+                righe_md.append(f"| {voce} | {r['calcolo']} | {totale_fmt} |")
+            st.markdown("\n".join(righe_md))
+
+        st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
+        if st.button("💾 Salva preventivo e genera PDF", type="primary", use_container_width=True):
             preventivo = supabase.table("preventivi").insert({
                 "progetto_id": progetto_id,
                 "totale_base": totale_base,
@@ -282,11 +264,8 @@ else:
                     "infisso_id": info_appl.get('infisso_id')
                 }).execute()
 
-            st.session_state["ultimo_preventivo_id"] = preventivo_id
-            st.session_state["ultimo_preventivo_pdf"] = None
-
-            st.success(f"Preventivo salvato! Totale: {format_euro(totale_finale)}")
-            st.balloons()
+            st.session_state["magg_applicazione"] = {}
+            st.session_state["magg_prev_stato"] = {}
 
             with st.spinner("Generazione PDF in corso..."):
                 oggi = date.today()
@@ -303,56 +282,9 @@ else:
                     totale_finale=totale_finale
                 )
                 pdf_buffer = genera_pdf_preventivo(contesto)
-                st.session_state["ultimo_preventivo_pdf"] = pdf_buffer
-                st.session_state["ultimo_preventivo_contesto"] = contesto
 
-            st.download_button(
-                "📥 Scarica PDF preventivo",
-                data=pdf_buffer,
-                file_name=f"preventivo_{slug(nome_cliente_progetto)}.pdf",
-                mime="application/pdf"
+            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente_progetto)}.pdf")
+            dialog_dopo_generazione_preventivo(
+                preventivo_id, pdf_buffer, contesto, progetto_selezionato['clienti'], nome_cliente_progetto,
+                progetto_selezionato['indirizzo'], progetto_selezionato['citta']
             )
-
-        if st.session_state.get("ultimo_preventivo_pdf") is not None:
-            st.divider()
-            st.subheader("✉️ Invia il preventivo via email")
-
-            contesto_salvato = st.session_state["ultimo_preventivo_contesto"]
-            preventivo_id_salvato = st.session_state["ultimo_preventivo_id"]
-
-            email_cliente_default = progetto_selezionato['clienti'].get('email') or ""
-            destinatario_email = st.text_input("Email destinatario", value=email_cliente_default, key="email_dest")
-            oggetto_email = st.text_input("Oggetto", value=f"Preventivo n. {contesto_salvato['numero_preventivo']} - {contesto_salvato['azienda_nome']}", key="email_ogg")
-            corpo_email = st.text_area(
-                "Messaggio",
-                value=(
-                    f"Gentile {nome_cliente_progetto},\n\n"
-                    f"In allegato il preventivo n. {contesto_salvato['numero_preventivo']} del {contesto_salvato['data']} "
-                    f"per i lavori presso {progetto_selezionato['indirizzo']}, {progetto_selezionato['citta']}.\n\n"
-                    f"Totale: {contesto_salvato['totale_finale']}\n\n"
-                    f"Restiamo a disposizione per qualsiasi chiarimento.\n\n"
-                    f"Cordiali saluti,\n{contesto_salvato['azienda_nome']}"
-                ),
-                height=200,
-                key="email_corpo"
-            )
-
-            if st.button("✉️ Invia email"):
-                if not destinatario_email:
-                    st.warning("Inserisci l'indirizzo email del destinatario.")
-                else:
-                    try:
-                        with st.spinner("Invio email in corso..."):
-                            invia_email_preventivo(
-                                destinatario_email, oggetto_email, corpo_email,
-                                st.session_state["ultimo_preventivo_pdf"],
-                                f"preventivo_{slug(nome_cliente_progetto)}.pdf"
-                            )
-                            supabase.table("preventivi").update({
-                                "email_inviata_a": destinatario_email,
-                                "email_inviata_il": datetime.now(timezone.utc).isoformat(),
-                                "stato": "inviato"
-                            }).eq("id", preventivo_id_salvato).execute()
-                        st.success(f"Email inviata a {destinatario_email}!")
-                    except Exception as e:
-                        st.error(f"Errore nell'invio: {e}")
