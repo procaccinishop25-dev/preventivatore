@@ -1,5 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
+from services.theme import apply_custom_theme
+from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
 import re
 
 
@@ -9,37 +11,29 @@ def slug(testo):
 
 
 @st.dialog("⚠️ Elimina progetto")
-def conferma_eliminazione(progetto_id, cliente_id, nome_completo):
+def conferma_eliminazione(progetto_id, nome_completo):
     st.warning(
         f"Stai per eliminare definitivamente il progetto di **{nome_completo}**, "
-        f"con tutti i suoi infissi, foto e i dati del cliente. Questa azione non si può annullare."
+        f"con tutti i suoi infissi e le foto caricate. Questa azione non si può annullare."
     )
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🗑️ Sì, elimina", type="primary", use_container_width=True):
             cartella_progetto = slug(nome_completo)
 
-            # 1. Elimina le foto dallo Storage
             file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
             if file_esistenti:
                 percorsi = [f"{cartella_progetto}/{f['name']}" for f in file_esistenti]
                 supabase.storage.from_("foto").remove(percorsi)
 
-            # 2. Elimina esplicitamente gli infissi collegati
             supabase.table("infissi").delete().eq("progetto_id", progetto_id).execute()
 
-            # 3. Elimina eventuali preventivi collegati
             preventivi_collegati = supabase.table("preventivi").select("id").eq("progetto_id", progetto_id).execute()
             for prev in preventivi_collegati.data:
                 supabase.table("preventivo_maggiorazioni").delete().eq("preventivo_id", prev["id"]).execute()
             supabase.table("preventivi").delete().eq("progetto_id", progetto_id).execute()
 
-            # 4. Elimina il progetto
             supabase.table("progetti").delete().eq("id", progetto_id).execute()
-
-            # 5. Elimina il cliente collegato (creato apposta per questo progetto)
-            if cliente_id:
-                supabase.table("clienti").delete().eq("id", cliente_id).execute()
 
             st.success("Progetto eliminato completamente.")
             st.rerun()
@@ -49,8 +43,13 @@ def conferma_eliminazione(progetto_id, cliente_id, nome_completo):
 
 
 st.set_page_config(page_title="I Miei Progetti", page_icon="📁")
+apply_custom_theme()
 
-st.title("📁 I Miei Progetti")
+st.markdown(
+    "<div class='page-header'><h1>📁 I Miei Progetti</h1>"
+    "<p>Riprendi un progetto o generane subito il preventivo.</p></div>",
+    unsafe_allow_html=True
+)
 
 progetti = supabase.table("progetti").select("*, clienti(nome, cognome_azienda, telefono, email)").order("created_at", desc=True).execute()
 
@@ -71,16 +70,28 @@ else:
         mq_totali = sum(i['mq'] * i['quantita'] for i in infissi.data) if infissi.data else 0
 
         with st.container(border=True):
-            col1, col2, col3 = st.columns([3, 1, 1])
+            col1, col2, col3, col4 = st.columns([3, 1.3, 1.5, 1])
             with col1:
                 st.subheader(nome_completo)
                 st.caption(f"📍 {p['indirizzo']}, {p['citta']}")
                 st.caption(f"🪟 {num_infissi} infissi — {mq_totali:.2f} m² totali — Stato: {p['stato']}")
             with col2:
-                if st.button("Apri →", key=f"apri_{p['id']}"):
+                if st.button("Apri →", key=f"apri_{p['id']}", use_container_width=True):
                     st.session_state["progetto_corrente_id"] = p['id']
                     st.session_state["progetto_corrente_nome"] = nome_completo
                     st.switch_page("pages/5_Gestione_Progetto.py")
             with col3:
-                if st.button("🗑️ Elimina", key=f"elimina_{p['id']}"):
-                    conferma_eliminazione(p['id'], p['cliente_id'], nome_completo)
+                if st.button("💰 Preventivo", key=f"genera_{p['id']}", use_container_width=True):
+                    if num_infissi == 0:
+                        st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
+                    else:
+                        with st.spinner("Generazione preventivo e PDF in corso..."):
+                            preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(p['id'], p, p['clienti'])
+                        trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}.pdf")
+                        dialog_dopo_generazione_preventivo(
+                            preventivo_id, pdf_buffer, contesto, p['clienti'], nome_completo,
+                            p['indirizzo'], p['citta']
+                        )
+            with col4:
+                if st.button("🗑️", key=f"elimina_{p['id']}", use_container_width=True, help="Elimina"):
+                    conferma_eliminazione(p['id'], nome_completo)
