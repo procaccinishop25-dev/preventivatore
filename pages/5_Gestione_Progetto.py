@@ -1,10 +1,10 @@
 import streamlit as st
 from services.supabase import supabase
+from services.theme import apply_custom_theme, badge
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
 import re
-import uuid
 
 
 def slug(testo):
@@ -15,9 +15,7 @@ def slug(testo):
 def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infisso, infisso_id):
     percorso = f"{cartella}/{slug(nome_infisso)}_{nome_file_originale}"
     supabase.storage.from_("foto").upload(
-        percorso,
-        bytes_data,
-        {"content-type": tipo, "upsert": "true"}
+        percorso, bytes_data, {"content-type": tipo, "upsert": "true"}
     )
     url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
@@ -34,6 +32,7 @@ def elenco_foto_generali(cartella_progetto):
 
 
 def carica_foto_generale(bytes_data, tipo, nome_originale, cartella_progetto):
+    import uuid
     nome_unico = f"generale_{uuid.uuid4().hex[:8]}_{nome_originale}"
     percorso = f"{cartella_progetto}/{nome_unico}"
     supabase.storage.from_("foto").upload(
@@ -52,9 +51,7 @@ def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
     buffer.seek(0)
     percorso = f"{cartella}/{slug(nome_file)}.png"
     supabase.storage.from_("schizzi").upload(
-        percorso,
-        buffer.getvalue(),
-        {"content-type": "image/png", "upsert": "true"}
+        percorso, buffer.getvalue(), {"content-type": "image/png", "upsert": "true"}
     )
     url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
     supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
@@ -64,12 +61,7 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=250, caption="Schizzo attuale")
 
-    strumento = st.radio(
-        "Strumento",
-        ["Penna", "Gomma", "Linea dritta"],
-        horizontal=True,
-        key=f"strumento_{key_prefix}"
-    )
+    strumento = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_{key_prefix}")
 
     if strumento == "Penna":
         spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
@@ -99,7 +91,7 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
         key=f"canvas_{key_prefix}"
     )
 
-    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}"):
+    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}", use_container_width=True):
         if canvas_result.image_data is not None:
             salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
             st.success("Schizzo salvato!")
@@ -109,10 +101,10 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
 
 
 st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
-
-st.title("🪟 Gestione Progetto")
+apply_custom_theme()
 
 if "progetto_corrente_id" not in st.session_state:
+    st.markdown("<div class='page-header'><h1>🪟 Gestione Progetto</h1></div>", unsafe_allow_html=True)
     st.warning("Nessun progetto selezionato.")
     st.page_link("pages/2_Progetti.py", label="Vai a I Miei Progetti →", icon="📁")
     st.page_link("pages/1_Nuovo_Progetto.py", label="Oppure crea un nuovo progetto →", icon="📋")
@@ -130,317 +122,52 @@ else:
     if "fotocamera_aperta" not in st.session_state:
         st.session_state["fotocamera_aperta"] = True
 
-    st.success(f"✅ Progetto: **{nome_cliente}**")
+    infissi_esistenti = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
+    num_infissi_tot = len(infissi_esistenti.data) if infissi_esistenti.data else 0
+    mq_tot = sum(i['mq'] * i['quantita'] for i in infissi_esistenti.data) if infissi_esistenti.data else 0.0
 
-    # --- Schizzo generale del progetto ---
-    st.write("✏️ Schizzo generale del progetto (es. pianta del cantiere)")
-    mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
-    if mostra_schizzo_generale:
-        progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
-        schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
-        pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
-
-    st.divider()
-
-    # --- Foto generali del progetto ---
-    st.write("📷 Foto generali del progetto (es. schizzi su carta fotografati, foto d'insieme del cantiere)")
-    mostra_foto_generali = st.checkbox("Mostra/Aggiungi foto generali", key="mostra_foto_generali")
-    if mostra_foto_generali:
-        if "foto_generali_key_counter" not in st.session_state:
-            st.session_state["foto_generali_key_counter"] = 0
-        if "foto_generali_catturate" not in st.session_state:
-            st.session_state["foto_generali_catturate"] = []
-        if "camera_generali_shot_counter" not in st.session_state:
-            st.session_state["camera_generali_shot_counter"] = 0
-        if "fotocamera_generali_aperta" not in st.session_state:
-            st.session_state["fotocamera_generali_aperta"] = True
-
-        foto_esistenti = elenco_foto_generali(cartella_progetto)
-        if foto_esistenti:
-            st.caption(f"Foto già caricate: {len(foto_esistenti)}")
-            cols = st.columns(4)
-            for idx, foto in enumerate(foto_esistenti):
-                with cols[idx % 4]:
-                    st.image(foto["url"], width=140)
-                    if st.button("🗑️ Elimina", key=f"elimina_generale_{foto['name']}"):
-                        elimina_foto_generale(cartella_progetto, foto["name"])
-                        st.rerun()
-        else:
-            st.caption("Nessuna foto generale caricata ancora.")
-
-        st.divider()
-
-        contatore_g = st.session_state["foto_generali_key_counter"]
-        metodo_foto_generali = st.radio(
-            "Come vuoi aggiungere foto generali?",
-            ["Carica da file", "Scatta foto"],
-            horizontal=True,
-            key=f"metodo_foto_generali_{contatore_g}"
-        )
-
-        if metodo_foto_generali == "Carica da file":
-            nuove_foto_generali = st.file_uploader(
-                "Carica una o più foto",
-                type=["jpg", "jpeg", "png"],
-                accept_multiple_files=True,
-                key=f"upload_generali_{contatore_g}"
-            ) or []
-            if nuove_foto_generali:
-                if st.button("⬆️ Carica queste foto", key=f"salva_upload_generali_{contatore_g}"):
-                    for f in nuove_foto_generali:
-                        carica_foto_generale(f.getvalue(), f.type, f.name, cartella_progetto)
-                    st.session_state["foto_generali_key_counter"] += 1
-                    st.success("Foto caricate!")
-                    st.rerun()
-
-        else:
-            st.caption(f"📸 Foto scattate finora: **{len(st.session_state['foto_generali_catturate'])}**")
-            if st.session_state["foto_generali_catturate"]:
-                cols_preview = st.columns(min(len(st.session_state["foto_generali_catturate"]), 6))
-                for idx, foto in enumerate(st.session_state["foto_generali_catturate"]):
-                    with cols_preview[idx % len(cols_preview)]:
-                        st.image(foto["bytes"], width=80)
-
-            if st.session_state["fotocamera_generali_aperta"]:
-                scatto_g = st.camera_input("Scatta una foto", key=f"cam_generali_{st.session_state['camera_generali_shot_counter']}")
-                col_agg_g, col_chiudi_g = st.columns(2)
-                with col_agg_g:
-                    if scatto_g is not None:
-                        if st.button("➕ Aggiungi alla lista", key=f"aggiungi_cam_generali_{contatore_g}"):
-                            st.session_state["foto_generali_catturate"].append({
-                                "bytes": scatto_g.getvalue(), "type": scatto_g.type, "name": scatto_g.name
-                            })
-                            st.session_state["camera_generali_shot_counter"] += 1
-                            st.rerun()
-                with col_chiudi_g:
-                    if st.button("✅ Ho finito, chiudi fotocamera", key=f"chiudi_cam_generali_{contatore_g}"):
-                        st.session_state["fotocamera_generali_aperta"] = False
-                        st.rerun()
-            else:
-                st.info("Fotocamera chiusa.")
-                col_riapri_g, col_svuota_g = st.columns(2)
-                with col_riapri_g:
-                    if st.button("📷 Riapri fotocamera", key=f"riapri_cam_generali_{contatore_g}"):
-                        st.session_state["fotocamera_generali_aperta"] = True
-                        st.rerun()
-                with col_svuota_g:
-                    if st.session_state["foto_generali_catturate"]:
-                        if st.button("🗑️ Svuota foto scattate", key=f"svuota_cam_generali_{contatore_g}"):
-                            st.session_state["foto_generali_catturate"] = []
-                            st.rerun()
-
-            if st.session_state["foto_generali_catturate"]:
-                if st.button("⬆️ Carica le foto scattate", key=f"carica_scattate_generali_{contatore_g}"):
-                    for foto in st.session_state["foto_generali_catturate"]:
-                        carica_foto_generale(foto["bytes"], foto["type"], foto["name"], cartella_progetto)
-                    st.session_state["foto_generali_catturate"] = []
-                    st.session_state["foto_generali_key_counter"] += 1
-                    st.session_state["fotocamera_generali_aperta"] = True
-                    st.success("Foto caricate!")
-                    st.rerun()
-
-    st.divider()
-    st.subheader("Aggiungi infissi")
-
-    contatore = st.session_state["foto_key_counter"]
-
-    st.write("📷 Foto (opzionale) — se aggiungi più finestre uguali, carica/scatta una foto per ciascuna: verranno assegnate in ordine")
-    metodo_foto = st.radio(
-        "Come vuoi aggiungere le foto?",
-        ["Nessuna", "Carica da file", "Scatta foto"],
-        horizontal=True,
-        key=f"metodo_foto_nuovo_{contatore}"
+    st.markdown(
+        f"<div class='page-header'><h1>🪟 {nome_cliente}</h1>"
+        f"<p>Gestisci infissi, foto e schizzi di questo progetto.</p></div>",
+        unsafe_allow_html=True
     )
 
-    foto_multiple_da_file = []
-    if metodo_foto == "Carica da file":
-        foto_multiple_da_file = st.file_uploader(
-            "Carica una o più foto (in ordine: 1ª foto → 1° infisso, 2ª foto → 2° infisso, ecc.)",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key=f"foto_upload_nuovo_{contatore}"
-        ) or []
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.metric("Infissi inseriti", num_infissi_tot)
+    with col_m2:
+        st.metric("Superficie totale", f"{mq_tot:.2f} m²")
 
-    elif metodo_foto == "Scatta foto":
-        st.caption(f"📸 Foto scattate finora: **{len(st.session_state['foto_catturate'])}**")
-        if st.session_state["foto_catturate"]:
-            cols_preview = st.columns(min(len(st.session_state["foto_catturate"]), 6))
-            for idx, foto in enumerate(st.session_state["foto_catturate"]):
-                with cols_preview[idx % len(cols_preview)]:
-                    st.image(foto["bytes"], width=80)
+    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
-        if st.session_state["fotocamera_aperta"]:
-            scatto = st.camera_input("Scatta una foto", key=f"foto_cam_multi_{st.session_state['camera_shot_counter']}")
+    # --- Schizzo generale del progetto ---
+    with st.container(border=True):
+        st.markdown("#### ✏️ Schizzo generale del progetto")
+        st.caption("Es. pianta del cantiere")
+        mostra_schizzo_generale = st.checkbox("Mostra/Modifica schizzo generale", key="mostra_schizzo_generale")
+        if mostra_schizzo_generale:
+            progetto_info = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
+            schizzo_esistente = progetto_info.data[0].get("schizzo_url") if progetto_info.data else None
+            pannello_schizzo("progetto", cartella_progetto, "schizzo_generale", "progetti", progetto_id, schizzo_esistente)
 
-            col_agg, col_chiudi = st.columns(2)
-            with col_agg:
-                if scatto is not None:
-                    if st.button("➕ Aggiungi questa foto alla lista"):
-                        st.session_state["foto_catturate"].append({
-                            "bytes": scatto.getvalue(),
-                            "type": scatto.type,
-                            "name": scatto.name
-                        })
-                        st.session_state["camera_shot_counter"] += 1
-                        st.rerun()
-            with col_chiudi:
-                if st.button("✅ Ho finito, chiudi fotocamera"):
-                    st.session_state["fotocamera_aperta"] = False
-                    st.rerun()
-        else:
-            st.info("Fotocamera chiusa.")
-            col_riapri, col_svuota = st.columns(2)
-            with col_riapri:
-                if st.button("📷 Riapri fotocamera"):
-                    st.session_state["fotocamera_aperta"] = True
-                    st.rerun()
-            with col_svuota:
-                if st.session_state["foto_catturate"]:
-                    if st.button("🗑️ Svuota foto scattate"):
-                        st.session_state["foto_catturate"] = []
-                        st.rerun()
+    # --- Foto generali del progetto ---
+    with st.container(border=True):
+        st.markdown("#### 📷 Foto generali del progetto")
+        st.caption("Es. schizzi su carta fotografati, foto d'insieme del cantiere")
+        mostra_foto_generali = st.checkbox("Mostra/Aggiungi foto generali", key="mostra_foto_generali")
+        if mostra_foto_generali:
+            if "foto_generali_key_counter" not in st.session_state:
+                st.session_state["foto_generali_key_counter"] = 0
+            if "foto_generali_catturate" not in st.session_state:
+                st.session_state["foto_generali_catturate"] = []
+            if "camera_generali_shot_counter" not in st.session_state:
+                st.session_state["camera_generali_shot_counter"] = 0
+            if "fotocamera_generali_aperta" not in st.session_state:
+                st.session_state["fotocamera_generali_aperta"] = True
 
-    with st.form("nuovo_infisso", clear_on_submit=True):
-        tipologia = st.selectbox("Tipologia", ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"])
-        larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0)
-        altezza = st.number_input("Altezza (cm)", min_value=1.0, step=1.0)
-        quantita = st.number_input("Quantità", min_value=1, step=1, value=1)
-        note_inf = st.text_area("Note")
-
-        mq_anteprima = (larghezza / 100) * (altezza / 100)
-        st.caption(f"Superficie calcolata: **{mq_anteprima:.2f} m²** per pezzo")
-
-        submitted_inf = st.form_submit_button("Aggiungi Infisso")
-
-        if submitted_inf:
-            lista_foto = []
-            if metodo_foto == "Carica da file" and foto_multiple_da_file:
-                for f in foto_multiple_da_file:
-                    lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
-            elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
-                lista_foto = st.session_state["foto_catturate"]
-
-            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
-            numero_iniziale = len(esistenti.data) + 1
-
-            id_infissi_creati = []
-
-            for i in range(int(quantita)):
-                numero = numero_iniziale + i
-                nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
-                nuovo = supabase.table("infissi").insert({
-                    "progetto_id": progetto_id,
-                    "tipologia": tipologia,
-                    "numero_infisso": numero,
-                    "nome": nome_infisso,
-                    "larghezza_cm": larghezza,
-                    "altezza_cm": altezza,
-                    "quantita": 1,
-                    "note": note_inf
-                }).execute()
-                id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
-
-            for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
-                if idx < len(lista_foto):
-                    foto = lista_foto[idx]
-                    carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
-
-            if lista_foto and len(lista_foto) < int(quantita):
-                st.info(f"Assegnate {len(lista_foto)} foto su {int(quantita)} infissi. Le restanti finestre sono senza foto, aggiungile singolarmente qui sotto.")
-            elif lista_foto and len(lista_foto) > int(quantita):
-                st.info(f"Hai caricato {len(lista_foto)} foto ma creato solo {int(quantita)} infissi: le foto in eccesso sono state ignorate.")
-
-            st.session_state["foto_key_counter"] += 1
-            st.session_state["foto_catturate"] = []
-            st.session_state["fotocamera_aperta"] = True
-
-            st.success(f"{int(quantita)} infisso/i aggiunto/i: {tipologia}")
-            st.rerun()
-
-    st.divider()
-
-    infissi = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
-
-    if infissi.data:
-        totale_mq = sum(i['mq'] * i['quantita'] for i in infissi.data)
-        st.caption(f"Infissi inseriti: {len(infissi.data)} — Superficie totale: **{totale_mq:.2f} m²**")
-
-        for inf in infissi.data:
-            nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
-
-            with st.expander(f"{nome_visualizzato} — {inf['larghezza_cm']}x{inf['altezza_cm']} cm — {inf['mq']} m²"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
-                    nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
-                with col2:
-                    nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}")
-
-                col_salva, col_elimina = st.columns(2)
-                with col_salva:
-                    if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}"):
-                        supabase.table("infissi").update({
-                            "larghezza_cm": nuova_larghezza,
-                            "altezza_cm": nuova_altezza,
-                            "note": nuove_note
-                        }).eq("id", inf['id']).execute()
-                        st.success("Modificato!")
-                        st.rerun()
-                with col_elimina:
-                    if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}"):
-                        supabase.table("infissi").delete().eq("id", inf['id']).execute()
-                        st.rerun()
-
-                st.divider()
-                st.write("📷 Foto")
-
-                if inf.get('foto_url'):
-                    st.image(inf['foto_url'], width=200)
-
-                metodo_foto_inf = st.radio(
-                    "Come vuoi aggiungere/cambiare la foto?",
-                    ["Carica da file", "Scatta foto"],
-                    horizontal=True,
-                    key=f"metodo_foto_{inf['id']}"
-                )
-
-                if metodo_foto_inf == "Carica da file":
-                    foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
-                else:
-                    foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
-
-                if foto_caricata is not None:
-                    if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}"):
-                        carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
-                        st.success("Foto caricata!")
-                        st.rerun()
-
-                st.divider()
-                st.write("✏️ Schizzo")
-
-                mostra_schizzo = st.checkbox("Aggiungi/modifica schizzo", key=f"mostra_schizzo_{inf['id']}")
-                if mostra_schizzo:
-                    pannello_schizzo(
-                        f"infisso_{inf['id']}",
-                        cartella_progetto,
-                        nome_visualizzato,
-                        "infissi",
-                        inf['id'],
-                        inf.get('schizzo_url')
-                    )
-    else:
-        st.info("Nessun infisso ancora inserito.")
-
-    st.divider()
-
-    col_fine, col_nuovo = st.columns(2)
-    with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti"):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/2_Progetti.py")
-    with col_nuovo:
-        if st.button("➕ Crea un altro progetto"):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/1_Nuovo_Progetto.py")
+            foto_esistenti = elenco_foto_generali(cartella_progetto)
+            if foto_esistenti:
+                st.caption(f"Foto già caricate: {len(foto_esistenti)}")
+                cols = st.columns(4)
+                for idx, foto in enumerate(foto_esistenti):
+                    with cols[idx % 4]:
