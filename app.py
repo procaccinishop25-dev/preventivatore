@@ -1,10 +1,13 @@
 import streamlit as st
+from services.theme import apply_custom_theme
 
 st.set_page_config(
-    page_title="Serramenti Demo",
+    page_title="Serramenti Pro",
     page_icon="🏠",
     layout="wide"
 )
+
+apply_custom_theme()
 
 pagina_home = st.Page("home.py", title="Home", icon="🏠", default=True)
 pagina_nuovo_progetto = st.Page("pages/1_Nuovo_Progetto.py", title="Nuovo Progetto", icon="📋")
@@ -20,12 +23,19 @@ navigazione = st.navigation(
 )
 
 with st.sidebar:
+    st.markdown(
+        "<div class='sidebar-brand'><span class='sidebar-brand-icon'>🏠</span>"
+        "<div><div class='sidebar-brand-title'>Serramenti Pro</div>"
+        "<div class='sidebar-brand-subtitle'>Sopralluoghi & Preventivi</div></div></div>",
+        unsafe_allow_html=True
+    )
     st.page_link(pagina_home, label="Home", icon="🏠")
     st.page_link(pagina_nuovo_progetto, label="Nuovo Progetto", icon="📋")
     st.page_link(pagina_progetti, label="Progetti", icon="📁")
+    st.markdown("<div class='sidebar-divider'></div>", unsafe_allow_html=True)
     st.page_link(pagina_nuovo_preventivo, label="Nuovo Preventivo", icon="💰")
     st.page_link(pagina_preventivi, label="Preventivi", icon="📄")
+    st.markdown("<div class='sidebar-divider'></div>", unsafe_allow_html=True)
     st.page_link(pagina_maggiorazioni, label="Maggiorazioni", icon="⚙️")
-    # "Gestione Progetto" resta nascosta dal menu, raggiungibile solo tramite i pulsanti dell'app
 
 navigazione.run()
