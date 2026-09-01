@@ -1,9 +1,10 @@
 import streamlit as st
 from services.supabase import supabase
 from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, format_euro, slug
+from services.email import invia_email_preventivo
 import pandas as pd
 import io
-from datetime import date
+from datetime import date, datetime, timezone
 
 
 def genera_excel_preventivo(nome_cliente, indirizzo, citta, righe_riepilogo_excel, mq_totale_progetto):
@@ -273,6 +274,9 @@ else:
 
             st.session_state["magg_applicazione"] = {}
             st.session_state["magg_prev_stato"] = {}
+            st.session_state["ultimo_preventivo_id"] = preventivo_id
+            st.session_state["ultimo_preventivo_pdf"] = None
+
             st.success(f"Preventivo salvato! Totale: {format_euro(totale_finale)}")
             st.balloons()
 
@@ -291,6 +295,8 @@ else:
                     totale_finale=totale_finale
                 )
                 pdf_buffer = genera_pdf_preventivo(contesto)
+                st.session_state["ultimo_preventivo_pdf"] = pdf_buffer
+                st.session_state["ultimo_preventivo_contesto"] = contesto
 
             st.download_button(
                 "📥 Scarica PDF preventivo",
@@ -298,3 +304,48 @@ else:
                 file_name=f"preventivo_{slug(nome_cliente_progetto)}.pdf",
                 mime="application/pdf"
             )
+
+        # --- Sezione invio email, disponibile dopo aver salvato e generato il PDF ---
+        if st.session_state.get("ultimo_preventivo_pdf") is not None:
+            st.divider()
+            st.subheader("✉️ Invia il preventivo via email")
+
+            contesto_salvato = st.session_state["ultimo_preventivo_contesto"]
+            preventivo_id_salvato = st.session_state["ultimo_preventivo_id"]
+
+            email_cliente_default = progetto_selezionato['clienti'].get('email') or ""
+            destinatario_email = st.text_input("Email destinatario", value=email_cliente_default, key="email_dest")
+            oggetto_email = st.text_input("Oggetto", value=f"Preventivo n. {contesto_salvato['numero_preventivo']} - {contesto_salvato['azienda_nome']}", key="email_ogg")
+            corpo_email = st.text_area(
+                "Messaggio",
+                value=(
+                    f"Gentile {nome_cliente_progetto},\n\n"
+                    f"In allegato il preventivo n. {contesto_salvato['numero_preventivo']} del {contesto_salvato['data']} "
+                    f"per i lavori presso {progetto_selezionato['indirizzo']}, {progetto_selezionato['citta']}.\n\n"
+                    f"Totale: {contesto_salvato['totale_finale']}\n\n"
+                    f"Restiamo a disposizione per qualsiasi chiarimento.\n\n"
+                    f"Cordiali saluti,\n{contesto_salvato['azienda_nome']}"
+                ),
+                height=200,
+                key="email_corpo"
+            )
+
+            if st.button("✉️ Invia email"):
+                if not destinatario_email:
+                    st.warning("Inserisci l'indirizzo email del destinatario.")
+                else:
+                    try:
+                        with st.spinner("Invio email in corso..."):
+                            invia_email_preventivo(
+                                destinatario_email, oggetto_email, corpo_email,
+                                st.session_state["ultimo_preventivo_pdf"],
+                                f"preventivo_{slug(nome_cliente_progetto)}.pdf"
+                            )
+                            supabase.table("preventivi").update({
+                                "email_inviata_a": destinatario_email,
+                                "email_inviata_il": datetime.now(timezone.utc).isoformat(),
+                                "stato": "inviato"
+                            }).eq("id", preventivo_id_salvato).execute()
+                        st.success(f"Email inviata a {destinatario_email}!")
+                    except Exception as e:
+                        st.error(f"Errore nell'invio: {e}")
