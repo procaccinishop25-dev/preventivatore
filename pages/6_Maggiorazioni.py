@@ -66,4 +66,6 @@ else:
                         st.success("Aggiornata!")
                         st.rerun()
                 with col_elimina:
-                    if
+                    if st.button("🗑️", key=f"elimina_magg_{m['id']}"):
+                        supabase.table("maggiorazioni").delete().eq("id", m['id']).execute()
+                        st.rerun()
