@@ -514,7 +514,7 @@ else:
 
     st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
 
-    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
+    if st.button("💰 Genera preventivo per questo progetto con regole preimpostate", type="primary", use_container_width=True):
         if num_infissi_tot == 0:
             st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
         else:
