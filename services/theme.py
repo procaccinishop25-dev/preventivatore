@@ -108,15 +108,22 @@ def apply_custom_theme():
         transition: background-color 0.12s ease, border-color 0.12s ease;
         border: 1px solid var(--color-border-hover);
         background-color: var(--color-surface);
+    }
+    .stApp button p, .stApp button div, .stApp button span {
         color: #334155;
     }
     .stApp button:hover {
         background-color: var(--color-bg);
         border-color: var(--color-text-disabled);
     }
+
     .stApp button[kind*="primary"] {
         background-color: var(--color-primary) !important;
         border-color: var(--color-primary) !important;
+    }
+    .stApp button[kind*="primary"] p,
+    .stApp button[kind*="primary"] div,
+    .stApp button[kind*="primary"] span {
         color: #FFFFFF !important;
     }
     .stApp button[kind*="primary"]:hover {
@@ -127,9 +134,14 @@ def apply_custom_theme():
         background-color: var(--color-primary-active) !important;
         border-color: var(--color-primary-active) !important;
     }
+
     [data-testid="stDownloadButton"] button {
         background-color: var(--color-primary) !important;
         border-color: var(--color-primary) !important;
+    }
+    [data-testid="stDownloadButton"] button p,
+    [data-testid="stDownloadButton"] button div,
+    [data-testid="stDownloadButton"] button span {
         color: #FFFFFF !important;
     }
     [data-testid="stDownloadButton"] button:hover {
