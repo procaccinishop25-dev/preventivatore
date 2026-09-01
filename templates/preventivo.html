@@ -62,7 +62,6 @@
         padding: 6px;
         border-bottom: 1px solid #E5E7EB;
         font-size: 9pt;
-        vertical-align: top;
     }
     table.riepilogo {
         width: 100%;
@@ -90,9 +89,24 @@
         border-top: 1px solid #E5E7EB;
         padding-top: 8px;
     }
-    img.thumb {
-        width: 50px;
-        max-height: 50px;
+    .titolo-allegato {
+        font-size: 14pt;
+        text-align: center;
+        background-color: #2563EB;
+        color: white;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+    .blocco-allegato {
+        page-break-inside: avoid;
+        margin-bottom: 18px;
+        border-bottom: 1px solid #E5E7EB;
+        padding-bottom: 12px;
+    }
+    .blocco-allegato h3 {
+        font-size: 11pt;
+        color: #2563EB;
+        margin-bottom: 6px;
     }
 </style>
 </head>
@@ -136,8 +150,6 @@
             <th>m²</th>
             <th>Prezzo €/m²</th>
             <th>Subtotale</th>
-            <th>Foto</th>
-            <th>Schizzo</th>
         </tr>
         {% for inf in infissi %}
         <tr>
@@ -146,8 +158,6 @@
             <td>{{ inf.mq }}</td>
             <td>{{ inf.prezzo_mq }}</td>
             <td>{{ inf.subtotale }}</td>
-            <td>{% if inf.foto_url %}<img class="thumb" src="{{ inf.foto_url }}" />{% endif %}</td>
-            <td>{% if inf.schizzo_url %}<img class="thumb" src="{{ inf.schizzo_url }}" />{% endif %}</td>
         </tr>
         {% endfor %}
     </table>
@@ -158,7 +168,7 @@
         {% for m in maggiorazioni %}
         <tr><td>{{ m.descrizione }}</td><td style="text-align:right;">{{ m.importo }}</td></tr>
         {% endfor %}
-        {% if sconto and sconto != "0,00 €" %}
+        {% if sconto %}
         <tr><td>Sconto</td><td style="text-align:right;">-{{ sconto }}</td></tr>
         {% endif %}
         <tr class="totale-finale"><td>TOTALE FINALE</td><td style="text-align:right;">{{ totale_finale }}</td></tr>
@@ -167,6 +177,46 @@
     <div class="footer">
         {{ azienda_nome }} — Preventivo generato il {{ data }} — Documento non fiscale, valido come proposta commerciale
     </div>
+
+    {% if mostra_allegato %}
+    <div style="page-break-before: always;"></div>
+    <div class="titolo-allegato">📷 Allegato fotografico e schizzi</div>
+
+    {% if schizzo_generale_url %}
+    <div class="blocco-allegato">
+        <h3>Schizzo generale del cantiere</h3>
+        <img src="{{ schizzo_generale_url }}" style="width:300px;" />
+    </div>
+    {% endif %}
+
+    {% if foto_generali %}
+    <div class="blocco-allegato">
+        <h3>Foto generali del cantiere</h3>
+        <table style="width:100%;">
+            <tr>
+            {% for foto in foto_generali %}
+                <td style="width:25%; text-align:center;"><img src="{{ foto }}" style="width:120px;" /></td>
+            {% endfor %}
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    {% for inf in infissi %}
+    {% if inf.foto_url or inf.schizzo_url %}
+    <div class="blocco-allegato">
+        <h3>{{ inf.nome }} — {{ inf.misure }}</h3>
+        <table style="width:100%;">
+            <tr>
+                {% if inf.foto_url %}<td style="width:50%; text-align:center;"><strong>Foto</strong><br/><img src="{{ inf.foto_url }}" style="width:220px;" /></td>{% endif %}
+                {% if inf.schizzo_url %}<td style="width:50%; text-align:center;"><strong>Schizzo</strong><br/><img src="{{ inf.schizzo_url }}" style="width:220px;" /></td>{% endif %}
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% endif %}
 
 </body>
 </html>
