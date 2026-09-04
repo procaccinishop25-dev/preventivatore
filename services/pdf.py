@@ -1,11 +1,14 @@
-import streamlit as st
+from jinja2 import Environment, FileSystemLoader
+from xhtml2pdf import pisa
 from services.supabase import supabase
-from services.theme import apply_custom_theme, badge
-from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
-from streamlit_drawable_canvas import st_canvas
-from PIL import Image
+from services.email import invia_email_preventivo
+from services.catalogo import ottieni_mappa_prezzi_catalogo
+import streamlit as st
+import streamlit.components.v1 as components
+from datetime import date, datetime, timezone
 import io
 import re
+import base64
 
 
 def slug(testo):
@@ -13,526 +16,246 @@ def slug(testo):
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
 
 
-def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infisso, infisso_id):
-    percorso = f"{cartella}/{slug(nome_infisso)}_{nome_file_originale}"
-    supabase.storage.from_("foto").upload(
-        percorso, bytes_data, {"content-type": tipo, "upsert": "true"}
-    )
-    url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
-    supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
+def format_euro(x):
+    s = f"{x:,.2f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{s} €"
 
 
-def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
-    img = Image.fromarray(image_data.astype("uint8"), "RGBA")
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    percorso = f"{cartella}/{slug(nome_file)}.png"
-    supabase.storage.from_("schizzi").upload(
-        percorso, buffer.getvalue(), {"content-type": "image/png", "upsert": "true"}
-    )
-    url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
-    supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
+def elenco_foto_generali(cartella_progetto):
+    file_esistenti = supabase.storage.from_("foto").list(cartella_progetto) or []
+    generali = [f for f in file_esistenti if f["name"].startswith("generale_")]
+    return [supabase.storage.from_("foto").get_public_url(f"{cartella_progetto}/{f['name']}") for f in generali]
 
 
-def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
-    if isinstance(url_esistente, str) and url_esistente.startswith("http"):
-        st.image(url_esistente, width=220, caption="Schizzo attuale")
-
-    strumento = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_{key_prefix}")
-
-    if strumento == "Penna":
-        spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
-        colore = "#000000"
-        modalita = "freedraw"
-    elif strumento == "Gomma":
-        spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_{key_prefix}")
-        colore = "#FFFFFF"
-        modalita = "freedraw"
-    else:
-        spessore = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_{key_prefix}")
-        colore = "#000000"
-        modalita = "line"
-
-    if strumento == "Linea dritta":
-        st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
-
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
-        stroke_width=spessore,
-        stroke_color=colore,
-        background_color="#FFFFFF",
-        height=320,
-        width=460,
-        drawing_mode=modalita,
-        display_toolbar=True,
-        key=f"canvas_{key_prefix}"
-    )
-
-    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}", use_container_width=True, type="primary"):
-        if canvas_result.image_data is not None:
-            salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
-            st.success("Schizzo salvato!")
-            st.rerun()
-        else:
-            st.warning("Disegna qualcosa prima di salvare.")
-
-
-@st.dialog("➕ Aggiungi infisso", width="large")
-def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
-    if "foto_key_counter" not in st.session_state:
-        st.session_state["foto_key_counter"] = 0
-    if "foto_catturate" not in st.session_state:
-        st.session_state["foto_catturate"] = []
-    if "camera_shot_counter" not in st.session_state:
-        st.session_state["camera_shot_counter"] = 0
-    if "fotocamera_aperta" not in st.session_state:
-        st.session_state["fotocamera_aperta"] = True
-
-    contatore = st.session_state["foto_key_counter"]
-
-    prodotti_catalogo = supabase.table("catalogo_prodotti").select(
-        "nome, materiale, prezzo_standard_mq, descrizione"
-    ).order("nome").execute().data or []
-
-    opzioni_tipologia = [p['nome'] for p in prodotti_catalogo] + ["Altro (personalizzato)"]
-
-    if not prodotti_catalogo:
-        st.caption("Il Catalogo è vuoto — aggiungi prodotti da lì, oppure usa \"Altro (personalizzato)\" qui sotto.")
-
-    col_t, col_q = st.columns([2, 1])
-    with col_t:
-        tipologia_scelta = st.selectbox("Tipologia", opzioni_tipologia, key=f"tip_{contatore}")
-    with col_q:
-        quantita = st.number_input("Quantità", min_value=1, step=1, value=1, key=f"qta_{contatore}")
-
-    tipologia = tipologia_scelta
-    prodotto_selezionato = None
-    if tipologia_scelta == "Altro (personalizzato)":
-        tipologia = st.text_input("Nome personalizzato", key=f"tip_custom_{contatore}", placeholder="Es. Zanzariera su misura")
-    else:
-        prodotto_selezionato = next((p for p in prodotti_catalogo if p['nome'] == tipologia_scelta), None)
-
-    if prodotto_selezionato:
-        prezzo_val = prodotto_selezionato.get('prezzo_standard_mq')
-        prezzo_str = f"{prezzo_val:.2f} €/m²" if prezzo_val is not None else "prezzo non impostato"
-        st.markdown(
-            f"<div style='background-color:var(--color-primary-light); border-radius:8px; padding:0.5rem 0.8rem; "
-            f"margin:0.3rem 0 0.6rem 0; font-size:0.85rem; color:var(--color-text);'>"
-            f"💶 <strong>{prezzo_str}</strong>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-    col_l, col_a = st.columns(2)
-    with col_l:
-        larghezza = st.number_input("Larghezza (cm)", min_value=1.0, step=1.0, key=f"larg_new_{contatore}")
-    with col_a:
-        altezza = st.number_input("Altezza (cm)", min_value=1.0, step=1.0, key=f"alt_new_{contatore}")
-
-    mq_anteprima = (larghezza / 100) * (altezza / 100)
-    st.markdown(
-        f"<div style='background-color:var(--color-primary-light); border-radius:8px; padding:0.6rem 0.9rem; "
-        f"margin:0.3rem 0 0.8rem 0;'><span style='color:var(--color-text-secondary); font-size:0.85rem;'>Superficie per pezzo</span><br>"
-        f"<span style='color:var(--color-primary); font-weight:700; font-size:1.15rem;'>{mq_anteprima:.2f} m²</span></div>",
-        unsafe_allow_html=True
-    )
-
-    note_inf = st.text_area("Note (opzionale)", height=70, key=f"note_new_{contatore}")
-
-    st.caption("📷 Foto (opzionale) — con più pezzi, assegnate in ordine")
-    metodo_foto = st.radio(
-        "Come aggiungere la foto?", ["Nessuna", "Carica da file", "Scatta foto"],
-        horizontal=True, key=f"metodo_foto_nuovo_{contatore}"
-    )
-
-    foto_multiple_da_file = []
-    if metodo_foto == "Carica da file":
-        foto_multiple_da_file = st.file_uploader(
-            "Carica una o più foto", type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True, key=f"foto_upload_nuovo_{contatore}"
-        ) or []
-
-    elif metodo_foto == "Scatta foto":
-        st.caption(f"📸 Scattate finora: **{len(st.session_state['foto_catturate'])}**")
-        if st.session_state["foto_catturate"]:
-            cols_preview = st.columns(min(len(st.session_state["foto_catturate"]), 6))
-            for idx, foto in enumerate(st.session_state["foto_catturate"]):
-                with cols_preview[idx % len(cols_preview)]:
-                    st.image(foto["bytes"], width=70)
-
-        if st.session_state["fotocamera_aperta"]:
-            scatto = st.camera_input("Scatta una foto", key=f"foto_cam_multi_{st.session_state['camera_shot_counter']}")
-            col_agg, col_chiudi = st.columns(2)
-            with col_agg:
-                if scatto is not None:
-                    if st.button("➕ Aggiungi alla lista", use_container_width=True):
-                        st.session_state["foto_catturate"].append({
-                            "bytes": scatto.getvalue(), "type": scatto.type, "name": scatto.name
-                        })
-                        st.session_state["camera_shot_counter"] += 1
-                        st.rerun()
-            with col_chiudi:
-                if st.button("✅ Chiudi fotocamera", use_container_width=True):
-                    st.session_state["fotocamera_aperta"] = False
-                    st.rerun()
-        else:
-            st.info("Fotocamera chiusa.")
-            col_riapri, col_svuota = st.columns(2)
-            with col_riapri:
-                if st.button("📷 Riapri fotocamera", use_container_width=True):
-                    st.session_state["fotocamera_aperta"] = True
-                    st.rerun()
-            with col_svuota:
-                if st.session_state["foto_catturate"]:
-                    if st.button("🗑️ Svuota", use_container_width=True):
-                        st.session_state["foto_catturate"] = []
-                        st.rerun()
-
-    st.divider()
-    st.caption("✏️ Schizzo (opzionale) — con più pezzi, viene salvato solo sul primo")
-    mostra_schizzo_creazione = st.checkbox("Aggiungi anche uno schizzo", key=f"mostra_schizzo_new_{contatore}")
-
-    canvas_schizzo_result = None
-    if mostra_schizzo_creazione:
-        strumento_s = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_new_{contatore}")
-
-        if strumento_s == "Penna":
-            spessore_s = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_new_{contatore}")
-            colore_s = "#000000"
-            modalita_s = "freedraw"
-        elif strumento_s == "Gomma":
-            spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_new_{contatore}")
-            colore_s = "#FFFFFF"
-            modalita_s = "freedraw"
-        else:
-            spessore_s = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_new_{contatore}")
-            colore_s = "#000000"
-            modalita_s = "line"
-
-        if strumento_s == "Linea dritta":
-            st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
-
-        canvas_schizzo_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=spessore_s,
-            stroke_color=colore_s,
-            background_color="#FFFFFF",
-            height=300,
-            width=440,
-            drawing_mode=modalita_s,
-            display_toolbar=True,
-            key=f"canvas_new_{contatore}"
-        )
-
-    st.write("")
-    if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
-        if not tipologia:
-            st.warning("Inserisci un nome per la tipologia personalizzata prima di continuare.")
-        else:
-            lista_foto = []
-            if metodo_foto == "Carica da file" and foto_multiple_da_file:
-                for f in foto_multiple_da_file:
-                    lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
-            elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
-                lista_foto = st.session_state["foto_catturate"]
-
-            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
-            numero_iniziale = len(esistenti.data) + 1
-
-            id_infissi_creati = []
-            for i in range(int(quantita)):
-                numero = numero_iniziale + i
-                nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
-                nuovo = supabase.table("infissi").insert({
-                    "progetto_id": progetto_id,
-                    "tipologia": tipologia,
-                    "numero_infisso": numero,
-                    "nome": nome_infisso,
-                    "larghezza_cm": larghezza,
-                    "altezza_cm": altezza,
-                    "quantita": 1,
-                    "note": note_inf
-                }).execute()
-                id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
-
-            for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
-                if idx < len(lista_foto):
-                    foto = lista_foto[idx]
-                    carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
-
-            if mostra_schizzo_creazione and canvas_schizzo_result is not None and canvas_schizzo_result.image_data is not None and id_infissi_creati:
-                primo_id, primo_nome = id_infissi_creati[0]
-                salva_schizzo(canvas_schizzo_result.image_data, cartella_progetto, primo_nome, "infissi", primo_id)
-                if int(quantita) > 1:
-                    st.info(f"Schizzo associato solo a **{primo_nome}**. Per gli altri, usa Modifica → Schizzo.")
-
-            st.session_state["foto_key_counter"] += 1
-            st.session_state["foto_catturate"] = []
-            st.session_state["fotocamera_aperta"] = True
-
-            st.success(f"{int(quantita)} infisso/i aggiunto/i!")
-            st.rerun()
-
-
-@st.dialog("Dettagli infisso", width="large")
-def dialog_dettagli_infisso(inf, cartella_progetto):
-    nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
-    st.markdown(f"### {nome_visualizzato}")
-
-    tab_misure, tab_foto, tab_schizzo = st.tabs(["📏 Misure", "📷 Foto", "✏️ Schizzo"])
-
-    with tab_misure:
-        col1, col2 = st.columns(2)
-        with col1:
-            nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
-        with col2:
-            nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
-
-        mq_live = (nuova_larghezza / 100) * (nuova_altezza / 100)
-        st.caption(f"Superficie: **{mq_live:.2f} m²**")
-
-        nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}", height=80)
-
-        st.write("")
-        col_salva, col_elimina = st.columns(2)
-        with col_salva:
-            if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}", use_container_width=True, type="primary"):
-                supabase.table("infissi").update({
-                    "larghezza_cm": nuova_larghezza,
-                    "altezza_cm": nuova_altezza,
-                    "note": nuove_note
-                }).eq("id", inf['id']).execute()
-                st.success("Modificato!")
-                st.rerun()
-        with col_elimina:
-            if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}", use_container_width=True):
-                supabase.table("infissi").delete().eq("id", inf['id']).execute()
-                st.rerun()
-
-    with tab_foto:
-        if inf.get('foto_url'):
-            st.image(inf['foto_url'], width=220)
-        else:
-            st.caption("Nessuna foto ancora.")
-
-        metodo_foto_inf = st.radio(
-            "Aggiungi/cambia foto", ["Carica da file", "Scatta foto"],
-            horizontal=True, key=f"metodo_foto_{inf['id']}"
-        )
-
-        if metodo_foto_inf == "Carica da file":
-            foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
-        else:
-            foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
-
-        if foto_caricata is not None:
-            if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}", use_container_width=True, type="primary"):
-                carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
-                st.success("Foto caricata!")
-                st.rerun()
-
-    with tab_schizzo:
-        pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
-
-
-@st.dialog("💸 Aggiungi maggiorazione")
-def dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi):
-    descrizione = st.text_input("Nome regola", placeholder="Es. Smontaggio vecchio infisso")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        importo = st.number_input("Importo", min_value=0.0, step=1.0)
-    with col2:
-        tipo_label = st.selectbox("Unità di misura", ["€/m²", "€ fisso", "%"])
-    tipo_map = {"€/m²": "mq", "€ fisso": "fisso", "%": "percentuale"}
-
-    applicazione = st.radio("Applica a", ["Tutti gli infissi", "Un infisso specifico"])
-    infisso_id_scelto = None
-    if applicazione == "Un infisso specifico":
-        if lista_infissi:
-            opzioni = {(inf.get('nome') or inf['tipologia']): inf['id'] for inf in lista_infissi}
-            nome_scelto = st.selectbox("Seleziona infisso", list(opzioni.keys()))
-            infisso_id_scelto = opzioni[nome_scelto]
-        else:
-            st.info("Nessun infisso ancora presente in questo progetto.")
-
-    if st.button("Aggiungi", type="primary", use_container_width=True):
-        if not descrizione:
-            st.warning("Inserisci un nome per la regola.")
-        else:
-            supabase.table("progetto_maggiorazioni").insert({
-                "progetto_id": progetto_id,
-                "descrizione": descrizione,
-                "importo": importo,
-                "tipo": tipo_map[tipo_label],
-                "infisso_id": infisso_id_scelto
-            }).execute()
-            st.success("Maggiorazione aggiunta!")
-            st.rerun()
-
-
-st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
-apply_custom_theme()
-
-if "progetto_corrente_id" not in st.session_state:
-    st.markdown("<div class='page-header'><h1>🪟 Gestione Progetto</h1></div>", unsafe_allow_html=True)
-    st.warning("Nessun progetto selezionato.")
-    st.page_link("pages/2_Progetti.py", label="Vai a I Miei Progetti →", icon="📁")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Oppure crea un nuovo progetto →", icon="📋")
-else:
-    progetto_id = st.session_state["progetto_corrente_id"]
-    nome_cliente = st.session_state["progetto_corrente_nome"]
+def costruisci_contesto_pdf(numero_preventivo, data, progetto, cliente, prezzi_tipologia, maggiorazioni_righe, totale_base, sconto, totale_finale):
+    progetto_id = progetto['id']
+    nome_cliente = f"{cliente.get('nome', '')} {cliente.get('cognome_azienda', '')}"
     cartella_progetto = slug(nome_cliente)
 
-    progetto_row = supabase.table("progetti").select(
-        "indirizzo, citta, data_sopralluogo, operatore, schizzo_url, clienti(nome, cognome_azienda, telefono, email)"
-    ).eq("id", progetto_id).execute()
-    progetto_data = progetto_row.data[0] if progetto_row.data else {}
-    cliente_data = progetto_data.get("clienti") or {}
+    infissi_db = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
 
-    infissi_esistenti = supabase.table("infissi").select("*").eq("progetto_id", progetto_id).order("numero_infisso").execute()
-    lista_infissi = infissi_esistenti.data or []
-    num_infissi_tot = len(lista_infissi)
-    mq_tot = sum(i['mq'] * i['quantita'] for i in lista_infissi)
+    infissi_ctx = []
+    superficie_totale = 0.0
+    for inf in infissi_db.data or []:
+        prezzo = prezzi_tipologia.get(inf['tipologia'], 0)
+        mq_riga = inf['mq'] * inf['quantita']
+        subtotale = mq_riga * prezzo
+        superficie_totale += mq_riga
+        infissi_ctx.append({
+            "nome": inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}",
+            "misure": f"{inf['larghezza_cm']}x{inf['altezza_cm']} cm",
+            "mq": f"{mq_riga:.2f}",
+            "prezzo_mq": format_euro(prezzo),
+            "subtotale": format_euro(subtotale),
+            "foto_url": inf.get('foto_url'),
+            "schizzo_url": inf.get('schizzo_url')
+        })
 
-    st.markdown(
-        f"<div style='font-size:0.82rem; color:var(--color-text-secondary); font-weight:500; margin-bottom:2px;'>PROGETTO</div>"
-        f"<h1 style='margin:0 0 2px 0;'>{nome_cliente}</h1>"
-        f"<p style='color:var(--color-text-secondary); margin:0 0 0.8rem 0; font-size:0.92rem;'>"
-        f"📍 {progetto_data.get('indirizzo', '')}, {progetto_data.get('citta', '')}</p>",
-        unsafe_allow_html=True
+    progetto_extra = supabase.table("progetti").select("schizzo_url").eq("id", progetto_id).execute()
+    schizzo_generale_url = progetto_extra.data[0].get('schizzo_url') if progetto_extra.data else None
+
+    foto_generali = elenco_foto_generali(cartella_progetto)
+
+    mostra_allegato = bool(
+        schizzo_generale_url or foto_generali or
+        any(i['foto_url'] or i['schizzo_url'] for i in infissi_ctx)
     )
 
-    st.markdown(
-        f"<div style='display:flex; gap:2.2rem; align-items:center; padding:0.7rem 0; "
-        f"border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border); margin-bottom:1.2rem;'>"
-        f"<div><span style='color:var(--color-text-secondary); font-size:0.82rem;'>Infissi &nbsp;</span>"
-        f"<span style='color:var(--color-title); font-weight:700; font-size:1rem;'>{num_infissi_tot}</span></div>"
-        f"<div style='width:1px; height:18px; background-color:var(--color-border);'></div>"
-        f"<div><span style='color:var(--color-text-secondary); font-size:0.82rem;'>Superficie totale &nbsp;</span>"
-        f"<span style='color:var(--color-primary); font-weight:700; font-size:1rem;'>{mq_tot:.2f} m²</span></div>"
-        f"</div>",
-        unsafe_allow_html=True
-    )
+    return {
+        "azienda_nome": "La Tua Azienda Serramenti",
+        "azienda_contatti": "Via Esempio 1, 00000 Città — Tel: 000 0000000 — email@esempio.it",
+        "numero_preventivo": numero_preventivo,
+        "data": data,
+        "cliente_nome": nome_cliente,
+        "cliente_telefono": cliente.get('telefono'),
+        "cliente_email": cliente.get('email'),
+        "progetto_indirizzo": progetto.get('indirizzo', ''),
+        "progetto_citta": progetto.get('citta', ''),
+        "data_sopralluogo": progetto.get('data_sopralluogo'),
+        "operatore": progetto.get('operatore'),
+        "numero_infissi": len(infissi_ctx),
+        "superficie_totale": f"{superficie_totale:.2f}",
+        "infissi": infissi_ctx,
+        "totale_base": format_euro(totale_base),
+        "maggiorazioni": maggiorazioni_righe,
+        "sconto": format_euro(sconto) if sconto else None,
+        "totale_finale": format_euro(totale_finale),
+        "schizzo_generale_url": schizzo_generale_url,
+        "foto_generali": foto_generali,
+        "mostra_allegato": mostra_allegato,
+    }
 
-    col_h1, col_h2 = st.columns([3, 1])
-    with col_h1:
-        st.markdown(f"### 🪟 Infissi <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({num_infissi_tot})</span>", unsafe_allow_html=True)
-    with col_h2:
-        if st.button("+ Aggiungi infisso", type="primary", use_container_width=True):
-            dialog_aggiungi_infisso(progetto_id, cartella_progetto)
 
-    if lista_infissi:
-        with st.expander(f"🪟 Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
-            for inf in lista_infissi:
-                nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
+def genera_pdf_preventivo(contesto):
+    env = Environment(loader=FileSystemLoader("templates"))
+    template = env.get_template("preventivo.html")
+    html_renderizzato = template.render(**contesto)
 
-                with st.container(border=True):
-                    col_info, col_azioni = st.columns([3, 1.4])
-                    with col_info:
-                        badge_riga = ""
-                        if inf.get('foto_url'):
-                            badge_riga += badge("📷 Foto", "info") + " "
-                        if inf.get('schizzo_url'):
-                            badge_riga += badge("✏️ Schizzo", "info")
+    buffer = io.BytesIO()
+    pisa.CreatePDF(html_renderizzato, dest=buffer)
+    buffer.seek(0)
+    return buffer
 
-                        st.markdown(
-                            f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
-                            f"<div style='color:var(--color-text-secondary); font-size:0.85rem; margin:2px 0 4px 0;'>"
-                            f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm &nbsp;·&nbsp; "
-                            f"<span style='color:var(--color-primary); font-weight:600;'>{inf['mq']} m²</span></div>"
-                            f"{badge_riga}",
-                            unsafe_allow_html=True
-                        )
-                    with col_azioni:
-                        b1, b2 = st.columns(2)
-                        with b1:
-                            if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
-                                dialog_dettagli_infisso(inf, cartella_progetto)
-                        with b2:
-                            if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
-                                esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
-                                numero_nuovo = len(esistenti.data) + 1
-                                nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
-                                supabase.table("infissi").insert({
-                                    "progetto_id": progetto_id,
-                                    "tipologia": inf['tipologia'],
-                                    "numero_infisso": numero_nuovo,
-                                    "nome": nome_nuovo,
-                                    "larghezza_cm": inf['larghezza_cm'],
-                                    "altezza_cm": inf['altezza_cm'],
-                                    "quantita": 1,
-                                    "note": inf['note']
-                                }).execute()
-                                st.success(f"Creato {nome_nuovo}")
-                                st.rerun()
-    else:
-        st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
 
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+def trigger_download_automatico(pdf_bytes, filename):
+    """Avvia automaticamente il download del PDF nel browser, senza bisogno di un click aggiuntivo."""
+    b64 = base64.b64encode(pdf_bytes).decode()
+    html = f"""
+    <html><body>
+    <a id="auto_dl" href="data:application/pdf;base64,{b64}" download="{filename}" style="display:none;"></a>
+    <script>document.getElementById('auto_dl').click();</script>
+    </body></html>
+    """
+    components.html(html, height=0, width=0)
 
-    maggiorazioni_progetto = supabase.table("progetto_maggiorazioni").select("*, infissi(nome)").eq("progetto_id", progetto_id).execute().data or []
 
-    col_hm1, col_hm2 = st.columns([3, 1])
-    with col_hm1:
-        st.markdown(f"### 💸 Maggiorazioni <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({len(maggiorazioni_progetto)})</span>", unsafe_allow_html=True)
-    with col_hm2:
-        if st.button("+ Aggiungi maggiorazione", use_container_width=True):
-            dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi)
+def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_default=400.0):
+    """Genera un preventivo usando il prezzo del Catalogo per ogni prodotto e le maggiorazioni salvate a livello di progetto."""
+    mappa_catalogo = ottieni_mappa_prezzi_catalogo()
 
-    if maggiorazioni_progetto:
-        for m in maggiorazioni_progetto:
-            etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
-            riferimento = m.get('infissi', {}).get('nome') if m.get('infissi') else "Tutti gli infissi"
-            with st.container(border=True):
-                col_i, col_e = st.columns([4, 1])
-                with col_i:
-                    st.markdown(f"**{m['descrizione']}** — {m['importo']} {etichetta_tipo}")
-                    st.caption(f"Applicata su: {riferimento}")
-                with col_e:
-                    if st.button("🗑️", key=f"elimina_magg_prog_{m['id']}", use_container_width=True):
-                        supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
-                        st.rerun()
-    else:
-        st.caption("Nessuna maggiorazione aggiunta a questo progetto.")
+    infissi_db = supabase.table("infissi").select("id, tipologia, mq, quantita, nome").eq("progetto_id", progetto_id).execute()
+    righe_infissi = infissi_db.data or []
 
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-    st.divider()
+    tipologie = sorted(set(i['tipologia'] for i in righe_infissi))
+    prezzi_tipologia = {t: mappa_catalogo.get(t, prezzo_default) for t in tipologie}
 
-    st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
+    totale_base = sum(i['mq'] * i['quantita'] * prezzi_tipologia[i['tipologia']] for i in righe_infissi)
+    mq_totale_progetto = sum(i['mq'] * i['quantita'] for i in righe_infissi)
 
-    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
-        if num_infissi_tot == 0:
-            st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
+    maggiorazioni_progetto = supabase.table("progetto_maggiorazioni").select("*").eq("progetto_id", progetto_id).execute().data or []
+
+    totale_maggiorazioni = 0.0
+    maggiorazioni_righe_pdf = []
+
+    for m in maggiorazioni_progetto:
+        if m.get('infisso_id'):
+            infisso_rif = next((i for i in righe_infissi if i['id'] == m['infisso_id']), None)
+            if infisso_rif:
+                base_mq = infisso_rif['mq'] * infisso_rif['quantita']
+                base_valore = base_mq * prezzi_tipologia.get(infisso_rif['tipologia'], prezzo_default)
+                riferimento = infisso_rif.get('nome') or infisso_rif['tipologia']
+            else:
+                base_mq, base_valore, riferimento = 0, 0, "infisso non trovato"
         else:
-            with st.spinner("Generazione preventivo e PDF in corso..."):
-                progetto_info_pdf = {**progetto_data, "id": progetto_id}
-                preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(progetto_id, progetto_info_pdf, cliente_data)
-            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente)}.pdf")
-            dialog_dopo_generazione_preventivo(
-                preventivo_id, pdf_buffer, contesto, cliente_data, nome_cliente,
-                progetto_data.get('indirizzo', ''), progetto_data.get('citta', '')
-            )
+            base_mq = mq_totale_progetto
+            base_valore = totale_base
+            riferimento = "tutti gli infissi"
 
-    col_link1, col_link2 = st.columns([1, 3])
-    with col_link1:
-        if st.button("Preventivo personalizzato →", use_container_width=True):
-            st.session_state["preventivo_preseleziona_id"] = progetto_id
-            st.switch_page("pages/3_Nuovo_Preventivo.py")
-    with col_link2:
-        st.caption("Imposta prezzi per tipologia su misura, invece del calcolo rapido.")
+        if m['tipo'] == 'mq':
+            importo_calc = m['importo'] * base_mq
+        elif m['tipo'] == 'fisso':
+            importo_calc = m['importo']
+        elif m['tipo'] == 'percentuale':
+            importo_calc = base_valore * (m['importo'] / 100)
+        else:
+            importo_calc = 0
 
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+        totale_maggiorazioni += importo_calc
+        maggiorazioni_righe_pdf.append({
+            "descrizione": f"{m['descrizione']} ({riferimento})",
+            "importo": format_euro(importo_calc)
+        })
 
-    col_fine, col_nuovo = st.columns(2)
-    with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti", use_container_width=True):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/2_Progetti.py")
-    with col_nuovo:
-        if st.button("➕ Crea un altro progetto", use_container_width=True):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/1_Nuovo_Progetto.py")
+    totale_finale = totale_base + totale_maggiorazioni
+
+    preventivo = supabase.table("preventivi").insert({
+        "progetto_id": progetto_id,
+        "totale_base": totale_base,
+        "sconti": 0,
+        "totale_finale": totale_finale,
+        "stato": "bozza"
+    }).execute()
+    preventivo_id = preventivo.data[0]["id"]
+
+    for t, prezzo in prezzi_tipologia.items():
+        supabase.table("preventivo_prezzi_tipologia").insert({
+            "preventivo_id": preventivo_id,
+            "tipologia": t,
+            "prezzo_mq": prezzo
+        }).execute()
+
+    for m in maggiorazioni_progetto:
+        supabase.table("preventivo_maggiorazioni").insert({
+            "preventivo_id": preventivo_id,
+            "infisso_id": m.get('infisso_id'),
+            "descrizione_personalizzata": m['descrizione'],
+            "importo_personalizzato": m['importo'],
+            "tipo_personalizzato": m['tipo']
+        }).execute()
+
+    oggi = date.today()
+    data_formattata = f"{oggi.day:02d}/{oggi.month:02d}/{oggi.year}"
+
+    contesto = costruisci_contesto_pdf(
+        numero_preventivo=preventivo_id[:8].upper(),
+        data=data_formattata,
+        progetto=progetto_info,
+        cliente=cliente_info,
+        prezzi_tipologia=prezzi_tipologia,
+        maggiorazioni_righe=maggiorazioni_righe_pdf,
+        totale_base=totale_base,
+        sconto=0,
+        totale_finale=totale_finale
+    )
+    pdf_buffer = genera_pdf_preventivo(contesto)
+
+    return preventivo_id, pdf_buffer, contesto
+
+
+@st.dialog("✅ Preventivo generato", width="large")
+def dialog_dopo_generazione_preventivo(preventivo_id, pdf_buffer, contesto, cliente_info, nome_cliente_display, indirizzo, citta):
+    st.success(f"Totale: {contesto['totale_finale']}")
+    st.caption(
+        "Il download del PDF è partito automaticamente. Prezzi presi dal Catalogo, maggiorazioni del progetto già incluse — "
+        "puoi gestirle in qualsiasi momento da Gestione Progetto."
+    )
+
+    st.divider()
+    invia_ora = st.radio(
+        "Vuoi inviarlo subito via email al cliente?",
+        ["Non ora", "Sì, invia subito"],
+        horizontal=True,
+        key=f"invia_scelta_{preventivo_id}"
+    )
+
+    if invia_ora == "Sì, invia subito":
+        email_default = cliente_info.get('email') or ""
+        destinatario = st.text_input("Email destinatario", value=email_default, key=f"dest_quick_{preventivo_id}")
+        oggetto = st.text_input(
+            "Oggetto",
+            value=f"Preventivo n. {contesto['numero_preventivo']} - {contesto['azienda_nome']}",
+            key=f"ogg_quick_{preventivo_id}"
+        )
+        corpo = st.text_area(
+            "Messaggio",
+            value=(
+                f"Gentile {nome_cliente_display},\n\n"
+                f"In allegato il preventivo n. {contesto['numero_preventivo']} del {contesto['data']} "
+                f"per i lavori presso {indirizzo}, {citta}.\n\n"
+                f"Totale: {contesto['totale_finale']}\n\n"
+                f"Restiamo a disposizione per qualsiasi chiarimento.\n\n"
+                f"Cordiali saluti,\n{contesto['azienda_nome']}"
+            ),
+            height=180,
+            key=f"corpo_quick_{preventivo_id}"
+        )
+
+        if st.button("✉️ Invia email", type="primary", use_container_width=True, key=f"invia_btn_quick_{preventivo_id}"):
+            if not destinatario:
+                st.warning("Inserisci l'indirizzo email del destinatario.")
+            else:
+                try:
+                    pdf_buffer.seek(0)
+                    invia_email_preventivo(destinatario, oggetto, corpo, pdf_buffer, f"preventivo_{slug(nome_cliente_display)}.pdf")
+                    supabase.table("preventivi").update({
+                        "email_inviata_a": destinatario,
+                        "email_inviata_il": datetime.now(timezone.utc).isoformat(),
+                        "stato": "inviato"
+                    }).eq("id", preventivo_id).execute()
+                    st.success(f"Email inviata a {destinatario}!")
+                except Exception as e:
+                    st.error(f"Errore nell'invio: {e}")
+    else:
+        if st.button("Chiudi", use_container_width=True, key=f"chiudi_quick_{preventivo_id}"):
+            st.rerun()
