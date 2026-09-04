@@ -398,3 +398,79 @@ else:
                     with col_info:
                         badge_riga = ""
                         if inf.get('foto_url'):
+                            badge_riga += badge("📷 Foto", "info") + " "
+                        if inf.get('schizzo_url'):
+                            badge_riga += badge("✏️ Schizzo", "info")
+
+                        st.markdown(
+                            f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
+                            f"<div style='color:var(--color-text-secondary); font-size:0.85rem; margin:2px 0 4px 0;'>"
+                            f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm &nbsp;·&nbsp; "
+                            f"<span style='color:var(--color-primary); font-weight:600;'>{inf['mq']} m²</span></div>"
+                            f"{badge_riga}",
+                            unsafe_allow_html=True
+                        )
+                    with col_azioni:
+                        b1, b2 = st.columns(2)
+                        with b1:
+                            if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
+                                dialog_dettagli_infisso(inf, cartella_progetto)
+                        with b2:
+                            if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
+                                esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
+                                numero_nuovo = len(esistenti.data) + 1
+                                nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
+                                supabase.table("infissi").insert({
+                                    "progetto_id": progetto_id,
+                                    "tipologia": inf['tipologia'],
+                                    "numero_infisso": numero_nuovo,
+                                    "nome": nome_nuovo,
+                                    "larghezza_cm": inf['larghezza_cm'],
+                                    "altezza_cm": inf['altezza_cm'],
+                                    "quantita": 1,
+                                    "note": inf['note']
+                                }).execute()
+                                st.success(f"Creato {nome_nuovo}")
+                                st.rerun()
+    else:
+        st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
+
+    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+    st.divider()
+
+    st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
+
+    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
+        if num_infissi_tot == 0:
+            st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
+        else:
+            with st.spinner("Generazione preventivo e PDF in corso..."):
+                progetto_info_pdf = {**progetto_data, "id": progetto_id}
+                preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(progetto_id, progetto_info_pdf, cliente_data)
+            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente)}.pdf")
+            dialog_dopo_generazione_preventivo(
+                preventivo_id, pdf_buffer, contesto, cliente_data, nome_cliente,
+                progetto_data.get('indirizzo', ''), progetto_data.get('citta', '')
+            )
+
+    col_link1, col_link2 = st.columns([1, 3])
+    with col_link1:
+        if st.button("Preventivo personalizzato →", use_container_width=True):
+            st.session_state["preventivo_preseleziona_id"] = progetto_id
+            st.switch_page("pages/3_Nuovo_Preventivo.py")
+    with col_link2:
+        st.caption("Imposta prezzi per tipologia e maggiorazioni su misura, invece del calcolo rapido.")
+
+    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
+    col_fine, col_nuovo = st.columns(2)
+    with col_fine:
+        if st.button("✅ Ho finito, vai a I Miei Progetti", use_container_width=True):
+            del st.session_state["progetto_corrente_id"]
+            del st.session_state["progetto_corrente_nome"]
+            st.switch_page("pages/2_Progetti.py")
+    with col_nuovo:
+        if st.button("➕ Crea un altro progetto", use_container_width=True):
+            del st.session_state["progetto_corrente_id"]
+            del st.session_state["progetto_corrente_nome"]
+            st.switch_page("pages/1_Nuovo_Progetto.py")
