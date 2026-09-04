@@ -2,7 +2,6 @@ import streamlit as st
 from services.supabase import supabase
 from services.theme import apply_custom_theme
 import uuid
-import re
 
 
 MATERIALI = ["Alluminio", "PVC", "Ferro"]
@@ -12,17 +11,6 @@ def carica_foto_prodotto(bytes_data, tipo, nome_file):
     nome_unico = f"catalogo/{uuid.uuid4().hex[:8]}_{nome_file}"
     supabase.storage.from_("foto").upload(nome_unico, bytes_data, {"content-type": tipo, "upsert": "true"})
     return supabase.storage.from_("foto").get_public_url(nome_unico)
-
-
-def deduci_tipologia(nome, materiale):
-    if not nome:
-        return "Senza nome"
-    testo = nome
-    if materiale:
-        pattern = re.compile(rf"\b{re.escape(materiale)}\b", re.IGNORECASE)
-        testo = pattern.sub("", testo)
-    testo = re.sub(r"\s+", " ", testo).strip()
-    return testo if testo else nome
 
 
 st.set_page_config(page_title="Catalogo", page_icon="🛒")
@@ -36,7 +24,7 @@ st.markdown(
 
 with st.container(border=True):
     st.markdown("#### ➕ Aggiungi nuovo prodotto")
-    st.caption("Suggerimento: includi il materiale nel nome, es. \"Finestra Alluminio\" — così viene raggruppato automaticamente.")
+    st.caption("Suggerimento: includi il materiale nel nome, es. \"Finestra Alluminio\", per riconoscerlo facilmente.")
 
     nome_p = st.text_input("Nome prodotto", key="nuovo_prod_nome", placeholder="Es. Finestra Alluminio")
 
@@ -76,74 +64,64 @@ if not prodotti:
 else:
     gruppi = {}
     for p in prodotti:
-        tip = deduci_tipologia(p['nome'], p.get('materiale'))
         mat = p.get("materiale") or "Non specificato"
-        gruppi.setdefault(tip, {}).setdefault(mat, []).append(p)
+        gruppi.setdefault(mat, []).append(p)
 
-    for tip in sorted(gruppi.keys()):
-        conteggio_tip = sum(len(lista) for lista in gruppi[tip].values())
+    for mat in list(MATERIALI) + ["Non specificato"]:
+        if mat not in gruppi:
+            continue
 
-        with st.expander(f"📁 {tip} ({conteggio_tip})", expanded=False):
-            for mat in list(MATERIALI) + ["Non specificato"]:
-                if mat not in gruppi[tip]:
-                    continue
+        with st.expander(f"📁 Prodotti in {mat} ({len(gruppi[mat])})", expanded=False):
+            for p in gruppi[mat]:
+                chiave_dettagli = f"mostra_dettagli_{p['id']}"
+                if chiave_dettagli not in st.session_state:
+                    st.session_state[chiave_dettagli] = False
 
-                st.markdown(
-                    f"<div style='font-weight:600; color:var(--color-text-secondary); font-size:0.85rem; "
-                    f"text-transform:uppercase; letter-spacing:0.03em; margin:0.6rem 0 0.4rem 0;'>🎨 {mat}</div>",
-                    unsafe_allow_html=True
-                )
+                with st.container(border=True):
+                    col_foto, col_info, col_toggle = st.columns([1, 3, 1])
+                    with col_foto:
+                        if p.get('foto_url'):
+                            st.image(p['foto_url'], width=70)
+                        else:
+                            st.caption("Nessuna foto")
+                    with col_info:
+                        st.markdown(f"**{p['nome']}**")
+                        st.caption(f"{p['prezzo_standard_mq']:.2f} €/m²" if p.get('prezzo_standard_mq') is not None else "Prezzo non impostato")
+                    with col_toggle:
+                        etichetta_bottone = "Chiudi" if st.session_state[chiave_dettagli] else "Dettagli"
+                        if st.button(etichetta_bottone, key=f"toggle_{p['id']}", use_container_width=True):
+                            st.session_state[chiave_dettagli] = not st.session_state[chiave_dettagli]
+                            st.rerun()
 
-                for p in gruppi[tip][mat]:
-                    chiave_dettagli = f"mostra_dettagli_{p['id']}"
-                    if chiave_dettagli not in st.session_state:
-                        st.session_state[chiave_dettagli] = False
+                    if st.session_state[chiave_dettagli]:
+                        st.divider()
+                        nuovo_nome = st.text_input("Nome", value=p['nome'], key=f"nome_{p['id']}")
 
-                    with st.container(border=True):
-                        col_foto, col_info, col_toggle = st.columns([1, 3, 1])
-                        with col_foto:
-                            if p.get('foto_url'):
-                                st.image(p['foto_url'], width=70)
-                            else:
-                                st.caption("Nessuna foto")
-                        with col_info:
-                            st.markdown(f"**{p['nome']}**")
-                            st.caption(f"{p['prezzo_standard_mq']:.2f} €/m²" if p.get('prezzo_standard_mq') is not None else "Prezzo non impostato")
-                        with col_toggle:
-                            etichetta_bottone = "Chiudi" if st.session_state[chiave_dettagli] else "Dettagli"
-                            if st.button(etichetta_bottone, key=f"toggle_{p['id']}", use_container_width=True):
-                                st.session_state[chiave_dettagli] = not st.session_state[chiave_dettagli]
+                        col_m2, col_pr2 = st.columns(2)
+                        with col_m2:
+                            indice_mat = MATERIALI.index(p['materiale']) if p.get('materiale') in MATERIALI else 0
+                            nuovo_materiale = st.selectbox("Materiale", MATERIALI, index=indice_mat, key=f"mat_{p['id']}")
+                        with col_pr2:
+                            nuovo_prezzo = st.number_input("Prezzo (€/m²)", value=float(p['prezzo_standard_mq'] or 0), min_value=0.0, step=10.0, key=f"prezzo_{p['id']}")
+
+                        nuova_descr = st.text_area("Descrizione", value=p.get('descrizione') or "", key=f"descr_{p['id']}", height=70)
+                        nuova_foto = st.file_uploader("Cambia foto", type=["jpg", "jpeg", "png"], key=f"foto_{p['id']}")
+
+                        col_salva, col_elimina = st.columns(2)
+                        with col_salva:
+                            if st.button("💾 Salva", key=f"salva_{p['id']}", use_container_width=True, type="primary"):
+                                aggiornamento = {
+                                    "nome": nuovo_nome,
+                                    "materiale": nuovo_materiale,
+                                    "prezzo_standard_mq": nuovo_prezzo,
+                                    "descrizione": nuova_descr
+                                }
+                                if nuova_foto is not None:
+                                    aggiornamento["foto_url"] = carica_foto_prodotto(nuova_foto.getvalue(), nuova_foto.type, nuova_foto.name)
+                                supabase.table("catalogo_prodotti").update(aggiornamento).eq("id", p['id']).execute()
+                                st.success("Aggiornato!")
                                 st.rerun()
-
-                        if st.session_state[chiave_dettagli]:
-                            st.divider()
-                            nuovo_nome = st.text_input("Nome", value=p['nome'], key=f"nome_{p['id']}")
-
-                            col_m2, col_pr2 = st.columns(2)
-                            with col_m2:
-                                indice_mat = MATERIALI.index(p['materiale']) if p.get('materiale') in MATERIALI else 0
-                                nuovo_materiale = st.selectbox("Materiale", MATERIALI, index=indice_mat, key=f"mat_{p['id']}")
-                            with col_pr2:
-                                nuovo_prezzo = st.number_input("Prezzo (€/m²)", value=float(p['prezzo_standard_mq'] or 0), min_value=0.0, step=10.0, key=f"prezzo_{p['id']}")
-
-                            nuova_descr = st.text_area("Descrizione", value=p.get('descrizione') or "", key=f"descr_{p['id']}", height=70)
-                            nuova_foto = st.file_uploader("Cambia foto", type=["jpg", "jpeg", "png"], key=f"foto_{p['id']}")
-
-                            col_salva, col_elimina = st.columns(2)
-                            with col_salva:
-                                if st.button("💾 Salva", key=f"salva_{p['id']}", use_container_width=True, type="primary"):
-                                    aggiornamento = {
-                                        "nome": nuovo_nome,
-                                        "materiale": nuovo_materiale,
-                                        "prezzo_standard_mq": nuovo_prezzo,
-                                        "descrizione": nuova_descr
-                                    }
-                                    if nuova_foto is not None:
-                                        aggiornamento["foto_url"] = carica_foto_prodotto(nuova_foto.getvalue(), nuova_foto.type, nuova_foto.name)
-                                    supabase.table("catalogo_prodotti").update(aggiornamento).eq("id", p['id']).execute()
-                                    st.success("Aggiornato!")
-                                    st.rerun()
-                            with col_elimina:
-                                if st.button("🗑️ Elimina", key=f"elimina_{p['id']}", use_container_width=True):
-                                    supabase.table("catalogo_prodotti").delete().eq("id", p['id']).execute()
-                                    st.rerun()
+                        with col_elimina:
+                            if st.button("🗑️ Elimina", key=f"elimina_{p['id']}", use_container_width=True):
+                                supabase.table("catalogo_prodotti").delete().eq("id", p['id']).execute()
+                                st.rerun()
