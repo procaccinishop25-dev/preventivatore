@@ -22,20 +22,25 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+if "catalogo_form_counter" not in st.session_state:
+    st.session_state["catalogo_form_counter"] = 0
+
+contatore_form = st.session_state["catalogo_form_counter"]
+
 with st.container(border=True):
     st.markdown("#### ➕ Aggiungi nuovo prodotto")
     st.caption("Suggerimento: includi il materiale nel nome, es. \"Finestra Alluminio\", per riconoscerlo facilmente.")
 
-    nome_p = st.text_input("Nome prodotto", key="nuovo_prod_nome", placeholder="Es. Finestra Alluminio")
+    nome_p = st.text_input("Nome prodotto", key=f"nuovo_prod_nome_{contatore_form}", placeholder="Es. Finestra Alluminio")
 
     col_mat, col_prezzo = st.columns(2)
     with col_mat:
-        materiale_p = st.selectbox("Materiale", MATERIALI, key="nuovo_prod_materiale")
+        materiale_p = st.selectbox("Materiale", MATERIALI, key=f"nuovo_prod_materiale_{contatore_form}")
     with col_prezzo:
-        prezzo_p = st.number_input("Prezzo standard (€/m²)", min_value=0.0, step=10.0, value=400.0, key="nuovo_prod_prezzo")
+        prezzo_p = st.number_input("Prezzo standard (€/m²)", min_value=0.0, step=10.0, value=400.0, key=f"nuovo_prod_prezzo_{contatore_form}")
 
-    descrizione_p = st.text_area("Descrizione", key="nuovo_prod_descr", height=80)
-    foto_p = st.file_uploader("Foto prodotto (opzionale)", type=["jpg", "jpeg", "png"], key="nuovo_prod_foto")
+    descrizione_p = st.text_area("Descrizione", key=f"nuovo_prod_descr_{contatore_form}", height=80)
+    foto_p = st.file_uploader("Foto prodotto (opzionale)", type=["jpg", "jpeg", "png"], key=f"nuovo_prod_foto_{contatore_form}")
 
     if st.button("Aggiungi prodotto", type="primary", use_container_width=True):
         if not nome_p:
@@ -51,16 +56,25 @@ with st.container(border=True):
                 "materiale": materiale_p,
                 "foto_url": foto_url
             }).execute()
+            st.session_state["catalogo_form_counter"] += 1
             st.success("Prodotto aggiunto!")
             st.rerun()
 
 st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 st.markdown("#### 📋 Prodotti nel catalogo")
 
+ricerca = st.text_input("🔍 Cerca prodotto per nome", key="ricerca_catalogo")
+
 prodotti = supabase.table("catalogo_prodotti").select("*").order("nome").execute().data or []
 
+if ricerca:
+    prodotti = [p for p in prodotti if ricerca.lower() in p['nome'].lower()]
+
 if not prodotti:
-    st.info("Nessun prodotto ancora. Aggiungine uno qui sopra.")
+    if ricerca:
+        st.info("Nessun prodotto trovato con questo nome.")
+    else:
+        st.info("Nessun prodotto ancora. Aggiungine uno qui sopra.")
 else:
     gruppi = {}
     for p in prodotti:
@@ -71,7 +85,7 @@ else:
         if mat not in gruppi:
             continue
 
-        with st.expander(f"📁 Prodotti in {mat} ({len(gruppi[mat])})", expanded=False):
+        with st.expander(f"📁 Prodotti in {mat} ({len(gruppi[mat])})", expanded=bool(ricerca)):
             for p in gruppi[mat]:
                 chiave_dettagli = f"mostra_dettagli_{p['id']}"
                 if chiave_dettagli not in st.session_state:
