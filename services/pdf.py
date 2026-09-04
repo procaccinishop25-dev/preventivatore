@@ -111,22 +111,59 @@ def trigger_download_automatico(pdf_bytes, filename):
 
 
 def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_default=400.0):
-    """Genera un preventivo usando il prezzo del Catalogo per ogni prodotto (fallback al prezzo_default se non trovato)."""
+    """Genera un preventivo usando il prezzo del Catalogo per ogni prodotto e le maggiorazioni salvate a livello di progetto."""
     mappa_catalogo = ottieni_mappa_prezzi_catalogo()
 
-    infissi_db = supabase.table("infissi").select("tipologia, mq, quantita").eq("progetto_id", progetto_id).execute()
+    infissi_db = supabase.table("infissi").select("id, tipologia, mq, quantita, nome").eq("progetto_id", progetto_id).execute()
     righe_infissi = infissi_db.data or []
 
     tipologie = sorted(set(i['tipologia'] for i in righe_infissi))
     prezzi_tipologia = {t: mappa_catalogo.get(t, prezzo_default) for t in tipologie}
 
     totale_base = sum(i['mq'] * i['quantita'] * prezzi_tipologia[i['tipologia']] for i in righe_infissi)
+    mq_totale_progetto = sum(i['mq'] * i['quantita'] for i in righe_infissi)
+
+    maggiorazioni_progetto = supabase.table("progetto_maggiorazioni").select("*").eq("progetto_id", progetto_id).execute().data or []
+
+    totale_maggiorazioni = 0.0
+    maggiorazioni_righe_pdf = []
+
+    for m in maggiorazioni_progetto:
+        if m.get('infisso_id'):
+            infisso_rif = next((i for i in righe_infissi if i['id'] == m['infisso_id']), None)
+            if infisso_rif:
+                base_mq = infisso_rif['mq'] * infisso_rif['quantita']
+                base_valore = base_mq * prezzi_tipologia.get(infisso_rif['tipologia'], prezzo_default)
+                riferimento = infisso_rif.get('nome') or infisso_rif['tipologia']
+            else:
+                base_mq, base_valore, riferimento = 0, 0, "infisso non trovato"
+        else:
+            base_mq = mq_totale_progetto
+            base_valore = totale_base
+            riferimento = "tutti gli infissi"
+
+        if m['tipo'] == 'mq':
+            importo_calc = m['importo'] * base_mq
+        elif m['tipo'] == 'fisso':
+            importo_calc = m['importo']
+        elif m['tipo'] == 'percentuale':
+            importo_calc = base_valore * (m['importo'] / 100)
+        else:
+            importo_calc = 0
+
+        totale_maggiorazioni += importo_calc
+        maggiorazioni_righe_pdf.append({
+            "descrizione": f"{m['descrizione']} ({riferimento})",
+            "importo": format_euro(importo_calc)
+        })
+
+    totale_finale = totale_base + totale_maggiorazioni
 
     preventivo = supabase.table("preventivi").insert({
         "progetto_id": progetto_id,
         "totale_base": totale_base,
         "sconti": 0,
-        "totale_finale": totale_base,
+        "totale_finale": totale_finale,
         "stato": "bozza"
     }).execute()
     preventivo_id = preventivo.data[0]["id"]
@@ -138,6 +175,15 @@ def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_de
             "prezzo_mq": prezzo
         }).execute()
 
+    for m in maggiorazioni_progetto:
+        supabase.table("preventivo_maggiorazioni").insert({
+            "preventivo_id": preventivo_id,
+            "infisso_id": m.get('infisso_id'),
+            "descrizione_personalizzata": m['descrizione'],
+            "importo_personalizzato": m['importo'],
+            "tipo_personalizzato": m['tipo']
+        }).execute()
+
     oggi = date.today()
     data_formattata = f"{oggi.day:02d}/{oggi.month:02d}/{oggi.year}"
 
@@ -147,10 +193,10 @@ def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_de
         progetto=progetto_info,
         cliente=cliente_info,
         prezzi_tipologia=prezzi_tipologia,
-        maggiorazioni_righe=[],
+        maggiorazioni_righe=maggiorazioni_righe_pdf,
         totale_base=totale_base,
         sconto=0,
-        totale_finale=totale_base
+        totale_finale=totale_finale
     )
     pdf_buffer = genera_pdf_preventivo(contesto)
 
@@ -161,8 +207,8 @@ def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_de
 def dialog_dopo_generazione_preventivo(preventivo_id, pdf_buffer, contesto, cliente_info, nome_cliente_display, indirizzo, citta):
     st.success(f"Totale: {contesto['totale_finale']}")
     st.caption(
-        "Il download del PDF è partito automaticamente. Prezzi presi dal Catalogo per ogni prodotto — "
-        "puoi personalizzarli aggiornando il Catalogo in qualsiasi momento."
+        "Il download del PDF è partito automaticamente. Prezzi presi dal Catalogo, maggiorazioni del progetto già incluse — "
+        "puoi gestirle in qualsiasi momento da Gestione Progetto."
     )
 
     st.divider()
