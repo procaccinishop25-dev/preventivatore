@@ -116,11 +116,10 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
     if prodotto_selezionato:
         prezzo_val = prodotto_selezionato.get('prezzo_standard_mq')
         prezzo_str = f"{prezzo_val:.2f} €/m²" if prezzo_val is not None else "prezzo non impostato"
-        descr = prodotto_selezionato.get('descrizione') or ""
         st.markdown(
             f"<div style='background-color:var(--color-primary-light); border-radius:8px; padding:0.5rem 0.8rem; "
             f"margin:0.3rem 0 0.6rem 0; font-size:0.85rem; color:var(--color-text);'>"
-            f"💶 <strong>{prezzo_str}</strong>" + (f" &nbsp;·&nbsp; {descr}" if descr else "") +
+            f"💶 <strong>{prezzo_str}</strong>"
             f"</div>",
             unsafe_allow_html=True
         )
