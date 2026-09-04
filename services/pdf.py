@@ -2,6 +2,7 @@ from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
 from services.supabase import supabase
 from services.email import invia_email_preventivo
+from services.catalogo import ottieni_mappa_prezzi_catalogo
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import date, datetime, timezone
@@ -110,14 +111,16 @@ def trigger_download_automatico(pdf_bytes, filename):
 
 
 def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_default=400.0):
-    """Genera un preventivo con prezzo standard per tutte le tipologie, senza maggiorazioni/sconti."""
+    """Genera un preventivo usando il prezzo del Catalogo per ogni prodotto (fallback al prezzo_default se non trovato)."""
+    mappa_catalogo = ottieni_mappa_prezzi_catalogo()
+
     infissi_db = supabase.table("infissi").select("tipologia, mq, quantita").eq("progetto_id", progetto_id).execute()
     righe_infissi = infissi_db.data or []
 
     tipologie = sorted(set(i['tipologia'] for i in righe_infissi))
-    prezzi_tipologia = {t: prezzo_default for t in tipologie}
+    prezzi_tipologia = {t: mappa_catalogo.get(t, prezzo_default) for t in tipologie}
 
-    totale_base = sum(i['mq'] * i['quantita'] * prezzo_default for i in righe_infissi)
+    totale_base = sum(i['mq'] * i['quantita'] * prezzi_tipologia[i['tipologia']] for i in righe_infissi)
 
     preventivo = supabase.table("preventivi").insert({
         "progetto_id": progetto_id,
@@ -158,8 +161,8 @@ def genera_preventivo_rapido(progetto_id, progetto_info, cliente_info, prezzo_de
 def dialog_dopo_generazione_preventivo(preventivo_id, pdf_buffer, contesto, cliente_info, nome_cliente_display, indirizzo, citta):
     st.success(f"Totale: {contesto['totale_finale']}")
     st.caption(
-        "Il download del PDF è partito automaticamente. Prezzo standard 400 €/m², nessuna maggiorazione — "
-        "puoi personalizzarlo in qualsiasi momento da \"Nuovo Preventivo\"."
+        "Il download del PDF è partito automaticamente. Prezzi presi dal Catalogo per ogni prodotto — "
+        "puoi personalizzarli aggiornando il Catalogo in qualsiasi momento."
     )
 
     st.divider()
