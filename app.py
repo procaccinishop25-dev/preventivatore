@@ -15,10 +15,12 @@ pagina_progetti = st.Page("pages/2_Progetti.py", title="I Miei Progetti", icon="
 pagina_nuovo_preventivo = st.Page("pages/3_Nuovo_Preventivo.py", title="Nuovo Preventivo", icon="💰")
 pagina_preventivi = st.Page("pages/4_Preventivi.py", title="I Miei Preventivi", icon="📄")
 pagina_gestione_progetto = st.Page("pages/5_Gestione_Progetto.py", title="Gestione Progetto", icon="🪟")
-pagina_maggiorazioni = st.Page("pages/6_Maggiorazioni.py", title="Aggiungi regole personalizzate", icon="⚙️")
+pagina_maggiorazioni = st.Page("pages/6_Maggiorazioni.py", title="Aggiungi regole prezzo personalizzate", icon="⚙️")
+pagina_catalogo = st.Page("pages/7_Catalogo.py", title="Catalogo", icon="🛒")
 
 navigazione = st.navigation(
-    [pagina_home, pagina_nuovo_progetto, pagina_progetti, pagina_nuovo_preventivo, pagina_preventivi, pagina_gestione_progetto, pagina_maggiorazioni],
+    [pagina_home, pagina_nuovo_progetto, pagina_progetti, pagina_nuovo_preventivo, pagina_preventivi,
+     pagina_gestione_progetto, pagina_maggiorazioni, pagina_catalogo],
     position="hidden"
 )
 
@@ -49,8 +51,10 @@ with st.sidebar:
     st.page_link(pagina_nuovo_preventivo, label="Nuovo Preventivo", icon="💰")
     st.page_link(pagina_preventivi, label="I miei preventivi", icon="📄")
 
-    st.markdown("<div class='sidebar-divider'></div>", unsafe_allow_html=True)
-    st.page_link(pagina_maggiorazioni, label="Aggiungi regole personalizzate", icon="⚙️")
+    sidebar_section_label("Personalizza")
+    st.page_link(pagina_maggiorazioni, label="Aggiungi regole prezzo personalizzate", icon="⚙️")
+    st.page_link(pagina_catalogo, label="Catalogo", icon="🛒")
+
     # "Gestione Progetto" resta raggiungibile solo tramite i pulsanti dell'app, non è nel menu
 
 navigazione.run()
