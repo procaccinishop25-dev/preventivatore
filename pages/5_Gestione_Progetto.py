@@ -336,6 +336,42 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
         pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
 
 
+@st.dialog("💸 Aggiungi maggiorazione")
+def dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi):
+    descrizione = st.text_input("Nome regola", placeholder="Es. Smontaggio vecchio infisso")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        importo = st.number_input("Importo", min_value=0.0, step=1.0)
+    with col2:
+        tipo_label = st.selectbox("Unità di misura", ["€/m²", "€ fisso", "%"])
+    tipo_map = {"€/m²": "mq", "€ fisso": "fisso", "%": "percentuale"}
+
+    applicazione = st.radio("Applica a", ["Tutti gli infissi", "Un infisso specifico"])
+    infisso_id_scelto = None
+    if applicazione == "Un infisso specifico":
+        if lista_infissi:
+            opzioni = {(inf.get('nome') or inf['tipologia']): inf['id'] for inf in lista_infissi}
+            nome_scelto = st.selectbox("Seleziona infisso", list(opzioni.keys()))
+            infisso_id_scelto = opzioni[nome_scelto]
+        else:
+            st.info("Nessun infisso ancora presente in questo progetto.")
+
+    if st.button("Aggiungi", type="primary", use_container_width=True):
+        if not descrizione:
+            st.warning("Inserisci un nome per la regola.")
+        else:
+            supabase.table("progetto_maggiorazioni").insert({
+                "progetto_id": progetto_id,
+                "descrizione": descrizione,
+                "importo": importo,
+                "tipo": tipo_map[tipo_label],
+                "infisso_id": infisso_id_scelto
+            }).execute()
+            st.success("Maggiorazione aggiunta!")
+            st.rerun()
+
+
 st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wide")
 apply_custom_theme()
 
@@ -435,6 +471,33 @@ else:
         st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
 
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
+    maggiorazioni_progetto = supabase.table("progetto_maggiorazioni").select("*, infissi(nome)").eq("progetto_id", progetto_id).execute().data or []
+
+    col_hm1, col_hm2 = st.columns([3, 1])
+    with col_hm1:
+        st.markdown(f"### 💸 Maggiorazioni <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({len(maggiorazioni_progetto)})</span>", unsafe_allow_html=True)
+    with col_hm2:
+        if st.button("+ Aggiungi maggiorazione", use_container_width=True):
+            dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi)
+
+    if maggiorazioni_progetto:
+        for m in maggiorazioni_progetto:
+            etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
+            riferimento = m.get('infissi', {}).get('nome') if m.get('infissi') else "Tutti gli infissi"
+            with st.container(border=True):
+                col_i, col_e = st.columns([4, 1])
+                with col_i:
+                    st.markdown(f"**{m['descrizione']}** — {m['importo']} {etichetta_tipo}")
+                    st.caption(f"Applicata su: {riferimento}")
+                with col_e:
+                    if st.button("🗑️", key=f"elimina_magg_prog_{m['id']}", use_container_width=True):
+                        supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
+                        st.rerun()
+    else:
+        st.caption("Nessuna maggiorazione aggiunta a questo progetto.")
+
+    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
     st.divider()
 
     st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
@@ -458,7 +521,7 @@ else:
             st.session_state["preventivo_preseleziona_id"] = progetto_id
             st.switch_page("pages/3_Nuovo_Preventivo.py")
     with col_link2:
-        st.caption("Imposta prezzi per tipologia e maggiorazioni su misura, invece del calcolo rapido.")
+        st.caption("Imposta prezzi per tipologia su misura, invece del calcolo rapido.")
 
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
