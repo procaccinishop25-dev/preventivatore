@@ -1,10 +1,10 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, badge
+from services.theme import apply_custom_theme
 import uuid
+import re
 
 
-TIPOLOGIE = ["Finestra", "Porta-finestra", "Portoncino", "Scorrevole", "Altro"]
 MATERIALI = ["Alluminio", "PVC", "Ferro"]
 
 
@@ -12,6 +12,17 @@ def carica_foto_prodotto(bytes_data, tipo, nome_file):
     nome_unico = f"catalogo/{uuid.uuid4().hex[:8]}_{nome_file}"
     supabase.storage.from_("foto").upload(nome_unico, bytes_data, {"content-type": tipo, "upsert": "true"})
     return supabase.storage.from_("foto").get_public_url(nome_unico)
+
+
+def deduci_tipologia(nome, materiale):
+    if not nome:
+        return "Senza nome"
+    testo = nome
+    if materiale:
+        pattern = re.compile(rf"\b{re.escape(materiale)}\b", re.IGNORECASE)
+        testo = pattern.sub("", testo)
+    testo = re.sub(r"\s+", " ", testo).strip()
+    return testo if testo else nome
 
 
 st.set_page_config(page_title="Catalogo", page_icon="🛒")
@@ -25,12 +36,11 @@ st.markdown(
 
 with st.container(border=True):
     st.markdown("#### ➕ Aggiungi nuovo prodotto")
+    st.caption("Suggerimento: includi il materiale nel nome, es. \"Finestra Alluminio\" — così viene raggruppato automaticamente.")
 
-    nome_p = st.text_input("Nome prodotto", key="nuovo_prod_nome")
+    nome_p = st.text_input("Nome prodotto", key="nuovo_prod_nome", placeholder="Es. Finestra Alluminio")
 
-    col_tip, col_mat, col_prezzo = st.columns(3)
-    with col_tip:
-        tipologia_p = st.selectbox("Tipologia", TIPOLOGIE, key="nuovo_prod_tipologia")
+    col_mat, col_prezzo = st.columns(2)
     with col_mat:
         materiale_p = st.selectbox("Materiale", MATERIALI, key="nuovo_prod_materiale")
     with col_prezzo:
@@ -48,7 +58,6 @@ with st.container(border=True):
                 foto_url = carica_foto_prodotto(foto_p.getvalue(), foto_p.type, foto_p.name)
             supabase.table("catalogo_prodotti").insert({
                 "nome": nome_p,
-                "tipologia": tipologia_p,
                 "descrizione": descrizione_p,
                 "prezzo_standard_mq": prezzo_p,
                 "materiale": materiale_p,
@@ -65,16 +74,13 @@ prodotti = supabase.table("catalogo_prodotti").select("*").order("nome").execute
 if not prodotti:
     st.info("Nessun prodotto ancora. Aggiungine uno qui sopra.")
 else:
-    # Raggruppa: tipologia -> materiale -> lista prodotti
     gruppi = {}
     for p in prodotti:
-        tip = p.get("tipologia") or "Non specificata"
+        tip = deduci_tipologia(p['nome'], p.get('materiale'))
         mat = p.get("materiale") or "Non specificato"
         gruppi.setdefault(tip, {}).setdefault(mat, []).append(p)
 
-    for tip in list(TIPOLOGIE) + ["Non specificata"]:
-        if tip not in gruppi:
-            continue
+    for tip in sorted(gruppi.keys()):
         conteggio_tip = sum(len(lista) for lista in gruppi[tip].values())
 
         with st.expander(f"📁 {tip} ({conteggio_tip})", expanded=False):
@@ -113,10 +119,7 @@ else:
                             st.divider()
                             nuovo_nome = st.text_input("Nome", value=p['nome'], key=f"nome_{p['id']}")
 
-                            col_t2, col_m2, col_pr2 = st.columns(3)
-                            with col_t2:
-                                indice_tip = TIPOLOGIE.index(p['tipologia']) if p.get('tipologia') in TIPOLOGIE else 0
-                                nuova_tipologia = st.selectbox("Tipologia", TIPOLOGIE, index=indice_tip, key=f"tip_{p['id']}")
+                            col_m2, col_pr2 = st.columns(2)
                             with col_m2:
                                 indice_mat = MATERIALI.index(p['materiale']) if p.get('materiale') in MATERIALI else 0
                                 nuovo_materiale = st.selectbox("Materiale", MATERIALI, index=indice_mat, key=f"mat_{p['id']}")
@@ -131,7 +134,6 @@ else:
                                 if st.button("💾 Salva", key=f"salva_{p['id']}", use_container_width=True, type="primary"):
                                     aggiornamento = {
                                         "nome": nuovo_nome,
-                                        "tipologia": nuova_tipologia,
                                         "materiale": nuovo_materiale,
                                         "prezzo_standard_mq": nuovo_prezzo,
                                         "descrizione": nuova_descr
