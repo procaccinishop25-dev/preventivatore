@@ -1,39 +1,32 @@
 (function () {
   let initialized = false;
+  let resizeTimer = null;
 
-  function ottieniAltezzaViewportReale() {
-    try {
-      if (window.parent && window.parent !== window) {
-        return window.parent.innerHeight;
-      }
-    } catch (e) {
-      // Accesso bloccato: uso il fallback qui sotto.
-    }
-    return window.innerHeight || window.screen.availHeight || 800;
-  }
-
-  function calcolaAltezzaTarget() {
-    const altezzaViewport = ottieniAltezzaViewportReale();
-    const margineSicurezza = 70; // spazio per l'intestazione della pagina Streamlit sopra il componente
-    let altezza = altezzaViewport - margineSicurezza;
-    altezza = Math.max(420, Math.min(altezza, 900));
-    return altezza;
-  }
-
-  function misuraCanvasDaWrapper() {
+  function misuraViewport() {
     const wrapper = document.getElementById("canvas-wrapper");
-    const larghezza = Math.max(280, wrapper.clientWidth - 24);
-    const altezza = Math.max(300, wrapper.clientHeight - 24);
-    return { larghezza, altezza };
+    return {
+      larghezza: wrapper.clientWidth,
+      altezza: wrapper.clientHeight,
+    };
+  }
+
+  function rifitta() {
+    const { larghezza, altezza } = misuraViewport();
+    DrawingEditor.resetFit(larghezza, altezza);
+  }
+
+  function impostaAltezzaComponente() {
+    // Il componente deve occupare tutta l'altezza reale visibile del dispositivo.
+    const altezza = window.innerHeight;
+    window.Streamlit.setFrameHeight(altezza);
   }
 
   function gestisciRidimensionamento() {
-    const altezzaTarget = calcolaAltezzaTarget();
-    window.Streamlit.setFrameHeight(altezzaTarget);
+    impostaAltezzaComponente();
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        const { larghezza, altezza } = misuraCanvasDaWrapper();
-        DrawingEditor.resize(larghezza, altezza);
+        const { larghezza, altezza } = misuraViewport();
+        DrawingEditor.onResize(larghezza, altezza);
       });
     });
   }
@@ -45,14 +38,14 @@
       initialized = true;
       document.getElementById("editor-title").textContent = args.title || "Schizzo";
 
-      const altezzaTarget = calcolaAltezzaTarget();
-      window.Streamlit.setFrameHeight(altezzaTarget);
+      impostaAltezzaComponente();
 
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          const { larghezza, altezza } = misuraCanvasDaWrapper();
+          const { larghezza, altezza } = misuraViewport();
 
-          DrawingEditor.init("fabric-canvas", larghezza, altezza);
+          DrawingEditor.init("fabric-canvas", "canvas-wrapper");
+          DrawingEditor.fitToScreen(larghezza, altezza);
           ToolbarUI.init();
 
           if (args.initial_state) {
@@ -63,14 +56,15 @@
         });
       });
 
-      let timerRidimensionamento = null;
-      window.addEventListener("resize", function () {
-        clearTimeout(timerRidimensionamento);
-        timerRidimensionamento = setTimeout(gestisciRidimensionamento, 200);
+      const resizeObserver = new ResizeObserver(function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(gestisciRidimensionamento, 120);
       });
+      resizeObserver.observe(document.getElementById("app"));
+
       window.addEventListener("orientationchange", function () {
-        clearTimeout(timerRidimensionamento);
-        timerRidimensionamento = setTimeout(gestisciRidimensionamento, 300);
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(gestisciRidimensionamento, 300);
       });
     }
   }
@@ -96,4 +90,6 @@
     window.Streamlit.events.addEventListener(window.Streamlit.RENDER_EVENT, handleRender);
     window.Streamlit.setComponentReady();
   });
+
+  window.AppLayout = { rifitta };
 })();
