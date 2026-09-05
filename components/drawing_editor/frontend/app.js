@@ -1,28 +1,27 @@
 (function () {
   let initialized = false;
 
-  function impostaAltezzaViewport() {
-    const altezza = window.innerHeight;
-    window.Streamlit.setFrameHeight(altezza);
+  function calcolaAltezzaTarget() {
+    const altezzaSchermo = window.screen.availHeight || window.screen.height || 800;
+    let altezza = Math.round(altezzaSchermo * 0.85);
+    altezza = Math.max(500, Math.min(altezza, 900));
     return altezza;
   }
 
-  function misuraSpazioDisponibileECreaCanvas(inizializzaAncora) {
+  function misuraCanvasDaWrapper() {
     const wrapper = document.getElementById("canvas-wrapper");
     const larghezza = Math.max(280, wrapper.clientWidth - 24);
     const altezza = Math.max(300, wrapper.clientHeight - 24);
-
-    if (inizializzaAncora) {
-      DrawingEditor.resize(larghezza, altezza);
-    }
     return { larghezza, altezza };
   }
 
   function gestisciRidimensionamento() {
-    impostaAltezzaViewport();
+    const altezzaTarget = calcolaAltezzaTarget();
+    window.Streamlit.setFrameHeight(altezzaTarget);
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        misuraSpazioDisponibileECreaCanvas(true);
+        const { larghezza, altezza } = misuraCanvasDaWrapper();
+        DrawingEditor.resize(larghezza, altezza);
       });
     });
   }
@@ -34,13 +33,12 @@
       initialized = true;
       document.getElementById("editor-title").textContent = args.title || "Schizzo";
 
-      impostaAltezzaViewport();
+      const altezzaTarget = calcolaAltezzaTarget();
+      window.Streamlit.setFrameHeight(altezzaTarget);
 
-      // Aspetta due frame di rendering: il primo per far sì che Streamlit
-      // ridimensioni davvero l'iframe, il secondo per misurare lo spazio reale ottenuto.
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          const { larghezza, altezza } = misuraSpazioDisponibileECreaCanvas(false);
+          const { larghezza, altezza } = misuraCanvasDaWrapper();
 
           DrawingEditor.init("fabric-canvas", larghezza, altezza);
           ToolbarUI.init();
