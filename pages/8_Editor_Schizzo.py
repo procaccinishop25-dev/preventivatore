@@ -5,9 +5,11 @@ from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
 import re
+import base64
 
 
 ICONE_STRUMENTI = {
+    "🖐️": "Sposta",
     "✏️": "Penna",
     "🧽": "Gomma",
     "➖": "Linea dritta",
@@ -25,6 +27,7 @@ ICONE_COLORI = {
 }
 
 MAPPA_MODALITA = {
+    "Sposta": "transform",
     "Penna": "freedraw",
     "Gomma": "freedraw",
     "Linea dritta": "line",
@@ -32,8 +35,8 @@ MAPPA_MODALITA = {
     "Cerchio": "circle",
 }
 
-LARGHEZZA_CANVAS = 1000
-ALTEZZA_CANVAS = 620
+LARGHEZZA_CANVAS = 1100
+ALTEZZA_CANVAS = 650
 
 
 def slug(testo):
@@ -41,14 +44,33 @@ def slug(testo):
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
 
 
-def prepara_immagine_sfondo(file_bytes):
+def costruisci_json_immagine(file_bytes, max_dim=350):
     img = Image.open(io.BytesIO(file_bytes)).convert("RGBA")
-    img.thumbnail((LARGHEZZA_CANVAS, ALTEZZA_CANVAS), Image.LANCZOS)
-    sfondo = Image.new("RGBA", (LARGHEZZA_CANVAS, ALTEZZA_CANVAS), (255, 255, 255, 255))
-    x = (LARGHEZZA_CANVAS - img.width) // 2
-    y = (ALTEZZA_CANVAS - img.height) // 2
-    sfondo.paste(img, (x, y), img)
-    return sfondo
+    w, h = img.size
+    scala = min(1.0, max_dim / max(w, h))
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    b64_png = base64.b64encode(buffer.getvalue()).decode()
+
+    return {
+        "version": "4.4.0",
+        "objects": [
+            {
+                "type": "image",
+                "version": "4.4.0",
+                "left": 30,
+                "top": 30,
+                "width": w,
+                "height": h,
+                "scaleX": scala,
+                "scaleY": scala,
+                "src": f"data:image/png;base64,{b64_png}",
+                "crossOrigin": "anonymous",
+                "selectable": True
+            }
+        ]
+    }
 
 
 def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
@@ -80,45 +102,65 @@ else:
         with st.expander("Vedi schizzo salvato in precedenza"):
             st.image(target['url_esistente'], width=300)
 
-    col_strumento, col_colore = st.columns([2, 2])
+    if "editor_ultima_foto_fingerprint" not in st.session_state:
+        st.session_state["editor_ultima_foto_fingerprint"] = None
+    if "editor_immagine_da_inserire" not in st.session_state:
+        st.session_state["editor_immagine_da_inserire"] = None
+
+    with st.expander("📎 Allega una foto (poi usa \"🖐️ Sposta\" per posizionarla)"):
+        st.caption("Attenzione: allega la foto prima di iniziare a disegnare, per evitare di perdere il disegno.")
+        foto_allegata = st.file_uploader("Scegli foto", type=["jpg", "jpeg", "png"], key="editor_foto_allegata")
+
+        if foto_allegata is not None:
+            fingerprint = f"{foto_allegata.name}_{foto_allegata.size}"
+            if fingerprint != st.session_state["editor_ultima_foto_fingerprint"]:
+                st.session_state["editor_ultima_foto_fingerprint"] = fingerprint
+                st.session_state["editor_immagine_da_inserire"] = costruisci_json_immagine(foto_allegata.getvalue())
+                st.rerun()
+
+    col_strumento, col_colore = st.columns([3, 2])
     with col_strumento:
         icona_strumento = st.radio("Strumento", list(ICONE_STRUMENTI.keys()), horizontal=True, key="editor_strumento")
         strumento = ICONE_STRUMENTI[icona_strumento]
     with col_colore:
-        if strumento != "Gomma":
+        if strumento not in ("Gomma", "Sposta"):
             icona_colore = st.radio("Colore", list(ICONE_COLORI.keys()), horizontal=True, key="editor_colore")
             colore = ICONE_COLORI[icona_colore]
         else:
-            colore = "#FFFFFF"
+            colore = "#FFFFFF" if strumento == "Gomma" else "#000000"
 
     modalita = MAPPA_MODALITA[strumento]
-    spessore = st.slider(
-        "Spessore" if strumento != "Gomma" else "Spessore gomma",
-        1 if strumento != "Gomma" else 5,
-        15 if strumento != "Gomma" else 60,
-        3 if strumento != "Gomma" else 25,
-        key="editor_spessore"
-    )
 
-    with st.expander("📷 Usa una foto come sfondo (opzionale)"):
-        foto_sfondo = st.file_uploader("Carica una foto per disegnarci sopra", type=["jpg", "jpeg", "png"], key="editor_foto_sfondo")
+    if strumento not in ("Sposta",):
+        spessore = st.slider(
+            "Spessore" if strumento != "Gomma" else "Spessore gomma",
+            1 if strumento != "Gomma" else 5,
+            15 if strumento != "Gomma" else 60,
+            3 if strumento != "Gomma" else 25,
+            key="editor_spessore"
+        )
+    else:
+        spessore = 3
+        st.caption("Trascina la foto per spostarla, tira gli angoli per ridimensionarla.")
 
-    immagine_sfondo = None
-    if foto_sfondo is not None:
-        immagine_sfondo = prepara_immagine_sfondo(foto_sfondo.getvalue())
+    immagine_da_inserire = st.session_state["editor_immagine_da_inserire"]
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        background_image=immagine_sfondo,
+        initial_drawing=immagine_da_inserire,
         height=ALTEZZA_CANVAS,
         width=LARGHEZZA_CANVAS,
         drawing_mode=modalita,
         display_toolbar=True,
         key="editor_canvas"
     )
+
+    # L'immagine va iniettata una sola volta: la puliamo subito dopo averla passata al canvas
+    if immagine_da_inserire is not None:
+        st.session_state["editor_immagine_da_inserire"] = None
 
     st.write("")
     col_salva, col_chiudi = st.columns(2)
@@ -127,6 +169,7 @@ else:
             if canvas_result.image_data is not None:
                 salva_schizzo(canvas_result.image_data, target['cartella'], target['nome_file'], target['tabella'], target['record_id'])
                 del st.session_state["editor_schizzo_target"]
+                st.session_state["editor_ultima_foto_fingerprint"] = None
                 st.success("Schizzo salvato!")
                 st.switch_page("pages/5_Gestione_Progetto.py")
             else:
@@ -134,4 +177,5 @@ else:
     with col_chiudi:
         if st.button("✖️ Chiudi senza salvare", use_container_width=True):
             del st.session_state["editor_schizzo_target"]
+            st.session_state["editor_ultima_foto_fingerprint"] = None
             st.switch_page("pages/5_Gestione_Progetto.py")
