@@ -1,6 +1,13 @@
 (function () {
   let initialized = false;
 
+  function adattaAltezzaFinestra() {
+    requestAnimationFrame(function () {
+      const altezzaReale = document.getElementById("app").scrollHeight;
+      window.Streamlit.setFrameHeight(altezzaReale);
+    });
+  }
+
   function handleRender(event) {
     const args = event.detail.args || {};
 
@@ -20,7 +27,8 @@
         DrawingEditor.loadImageAsObject(args.background_image_url);
       }
 
-      window.Streamlit.setFrameHeight(height + 160);
+      adattaAltezzaFinestra();
+      window.addEventListener("resize", adattaAltezzaFinestra);
     }
   }
 
