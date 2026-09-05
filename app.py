@@ -17,10 +17,11 @@ pagina_preventivi = st.Page("pages/4_Preventivi.py", title="I Miei Preventivi", 
 pagina_gestione_progetto = st.Page("pages/5_Gestione_Progetto.py", title="Gestione Progetto", icon="🪟")
 pagina_maggiorazioni = st.Page("pages/6_Maggiorazioni.py", title="Aggiungi regole prezzo personalizzate", icon="⚙️")
 pagina_catalogo = st.Page("pages/7_Catalogo.py", title="Catalogo", icon="🛒")
+pagina_editor_schizzo = st.Page("pages/8_Editor_Schizzo.py", title="Editor Schizzo", icon="✏️")
 
 navigazione = st.navigation(
     [pagina_home, pagina_nuovo_progetto, pagina_progetti, pagina_nuovo_preventivo, pagina_preventivi,
-     pagina_gestione_progetto, pagina_maggiorazioni, pagina_catalogo],
+     pagina_gestione_progetto, pagina_maggiorazioni, pagina_catalogo, pagina_editor_schizzo],
     position="hidden"
 )
 
@@ -55,6 +56,6 @@ with st.sidebar:
     st.page_link(pagina_maggiorazioni, label="Aggiungi regole prezzo personalizzate", icon="⚙️")
     st.page_link(pagina_catalogo, label="Catalogo", icon="🛒")
 
-    # "Gestione Progetto" resta raggiungibile solo tramite i pulsanti dell'app, non è nel menu
+    # "Gestione Progetto" e "Editor Schizzo" restano raggiungibili solo tramite i pulsanti dell'app
 
 navigazione.run()
