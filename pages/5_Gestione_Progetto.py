@@ -39,17 +39,15 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=220, caption="Schizzo attuale")
 
-    col_strumento, col_colore = st.columns([3, 1])
-    with col_strumento:
-        strumento = st.radio(
-            "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
-            horizontal=True, key=f"strumento_{key_prefix}"
-        )
-    with col_colore:
-        if strumento != "Gomma":
-            colore = st.color_picker("Colore", "#000000", key=f"colore_{key_prefix}")
-        else:
-            colore = "#FFFFFF"
+    strumento = st.radio(
+        "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
+        horizontal=True, key=f"strumento_{key_prefix}"
+    )
+
+    if strumento != "Gomma":
+        colore = st.color_picker("Colore", "#000000", key=f"colore_{key_prefix}")
+    else:
+        colore = "#FFFFFF"
 
     if strumento == "Penna":
         spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
@@ -210,17 +208,15 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
 
     canvas_schizzo_result = None
     if mostra_schizzo_creazione:
-        col_strumento_s, col_colore_s = st.columns([3, 1])
-        with col_strumento_s:
-            strumento_s = st.radio(
-                "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
-                horizontal=True, key=f"strumento_new_{contatore}"
-            )
-        with col_colore_s:
-            if strumento_s != "Gomma":
-                colore_s = st.color_picker("Colore", "#000000", key=f"colore_new_{contatore}")
-            else:
-                colore_s = "#FFFFFF"
+        strumento_s = st.radio(
+            "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
+            horizontal=True, key=f"strumento_new_{contatore}"
+        )
+
+        if strumento_s != "Gomma":
+            colore_s = st.color_picker("Colore", "#000000", key=f"colore_new_{contatore}")
+        else:
+            colore_s = "#FFFFFF"
 
         if strumento_s == "Penna":
             spessore_s = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_new_{contatore}")
