@@ -5,4 +5,3 @@ pandas
 openpyxl
 xhtml2pdf
 jinja2
-streamlit-image-coordinates
