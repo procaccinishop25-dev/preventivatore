@@ -15,9 +15,19 @@
     DrawingEditor.resetFit(larghezza, altezza);
   }
 
+  function ottieniAltezzaDisponibile() {
+    try {
+      if (window.parent && window.parent !== window) {
+        return window.parent.innerHeight;
+      }
+    } catch (e) {
+      // accesso bloccato (raro, cross-origin): uso il fallback qui sotto
+    }
+    return window.screen.availHeight || window.innerHeight || 800;
+  }
+
   function impostaAltezzaComponente() {
-    // Il componente deve occupare tutta l'altezza reale visibile del dispositivo.
-    const altezza = window.innerHeight;
+    const altezza = ottieniAltezzaDisponibile();
     window.Streamlit.setFrameHeight(altezza);
   }
 
