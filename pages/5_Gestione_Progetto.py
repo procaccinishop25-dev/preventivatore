@@ -8,6 +8,32 @@ import io
 import re
 
 
+ICONE_STRUMENTI = {
+    "✏️": "Penna",
+    "🧽": "Gomma",
+    "➖": "Linea dritta",
+    "▭": "Rettangolo",
+    "⚪": "Cerchio",
+}
+
+ICONE_COLORI = {
+    "⚫": "#000000",
+    "🔴": "#DC2626",
+    "🔵": "#2563EB",
+    "🟢": "#16A34A",
+    "🟡": "#F59E0B",
+    "🟣": "#7C3AED",
+}
+
+MAPPA_MODALITA = {
+    "Penna": "freedraw",
+    "Gomma": "freedraw",
+    "Linea dritta": "line",
+    "Rettangolo": "rect",
+    "Cerchio": "circle",
+}
+
+
 def slug(testo):
     testo = (testo or "").strip().replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
@@ -35,73 +61,52 @@ def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
     supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
 
 
-def selettore_colore(key_prefix):
-    """Palette di colori a pallini cliccabili, invece del selettore hex."""
-    colori = [
-        ("Nero", "#000000", "⚫"),
-        ("Rosso", "#DC2626", "🔴"),
-        ("Blu", "#2563EB", "🔵"),
-        ("Verde", "#16A34A", "🟢"),
-        ("Giallo", "#F59E0B", "🟡"),
-        ("Viola", "#7C3AED", "🟣"),
-    ]
-    chiave_stato = f"colore_scelto_{key_prefix}"
-    if chiave_stato not in st.session_state:
-        st.session_state[chiave_stato] = "#000000"
+def selettori_strumento_colore(key_prefix):
+    """Radio a icone per strumento e colore — nessun rerun manuale, quindi non chiude mai la finestrella."""
+    icona_strumento = st.radio(
+        "Strumento",
+        list(ICONE_STRUMENTI.keys()),
+        horizontal=True,
+        key=f"strumento_{key_prefix}",
+        format_func=lambda x: x
+    )
+    strumento = ICONE_STRUMENTI[icona_strumento]
 
-    st.caption("Colore")
-    cols = st.columns(len(colori))
-    for idx, (nome_c, hex_c, emoji_c) in enumerate(colori):
-        with cols[idx]:
-            if st.button(emoji_c, key=f"colore_btn_{key_prefix}_{idx}", help=nome_c, use_container_width=True):
-                st.session_state[chiave_stato] = hex_c
-                st.rerun()
+    if strumento != "Gomma":
+        icona_colore = st.radio(
+            "Colore",
+            list(ICONE_COLORI.keys()),
+            horizontal=True,
+            key=f"colore_{key_prefix}"
+        )
+        colore = ICONE_COLORI[icona_colore]
+    else:
+        colore = "#FFFFFF"
 
-    return st.session_state[chiave_stato]
+    return strumento, colore
 
 
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=220, caption="Schizzo attuale")
 
-    strumento = st.radio(
-        "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
-        horizontal=True, key=f"strumento_{key_prefix}"
-    )
+    strumento, colore = selettori_strumento_colore(key_prefix)
+    modalita = MAPPA_MODALITA[strumento]
 
-    if strumento != "Gomma":
-        colore = selettore_colore(key_prefix)
-    else:
-        colore = "#FFFFFF"
-
-    if strumento == "Penna":
-        spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
-        modalita = "freedraw"
+    if strumento in ("Rettangolo", "Cerchio", "Linea dritta"):
+        spessore = st.slider("Spessore", 1, 15, 3, key=f"spessore_{strumento}_{key_prefix}")
     elif strumento == "Gomma":
-        spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_{key_prefix}")
-        modalita = "freedraw"
-    elif strumento == "Rettangolo":
-        spessore = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_rect_{key_prefix}")
-        modalita = "rect"
-    elif strumento == "Cerchio":
-        spessore = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_circle_{key_prefix}")
-        modalita = "circle"
+        spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_{strumento}_{key_prefix}")
     else:
-        spessore = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_{key_prefix}")
-        modalita = "line"
-
-    if strumento == "Linea dritta":
-        st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
-    elif strumento in ("Rettangolo", "Cerchio"):
-        st.caption("Trascina per disegnare la forma. Per un quadrato/cerchio perfetto, trascina in diagonale uguale.")
+        spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_{strumento}_{key_prefix}")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        height=420,
-        width=560,
+        height=520,
+        width=720,
         drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
@@ -227,6 +232,32 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                         st.session_state["foto_catturate"] = []
                         st.rerun()
 
+    st.divider()
+    st.caption("✏️ Schizzo (opzionale) — con più pezzi, viene salvato solo sul primo")
+    mostra_schizzo_creazione = st.checkbox("Aggiungi anche uno schizzo", key=f"mostra_schizzo_new_{contatore}")
+
+    canvas_schizzo_result = None
+    if mostra_schizzo_creazione:
+        strumento_s, colore_s = selettori_strumento_colore(f"new_{contatore}")
+        modalita_s = MAPPA_MODALITA[strumento_s]
+
+        if strumento_s == "Gomma":
+            spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_{strumento_s}_new_{contatore}")
+        else:
+            spessore_s = st.slider("Spessore", 1, 15, 3, key=f"spessore_{strumento_s}_new_{contatore}")
+
+        canvas_schizzo_result = st_canvas(
+            fill_color="rgba(255, 255, 255, 0)",
+            stroke_width=spessore_s,
+            stroke_color=colore_s,
+            background_color="#FFFFFF",
+            height=480,
+            width=680,
+            drawing_mode=modalita_s,
+            display_toolbar=True,
+            key=f"canvas_new_{contatore}"
+        )
+
     st.write("")
     if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
         if not tipologia:
@@ -263,76 +294,78 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                     foto = lista_foto[idx]
                     carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
 
+            if mostra_schizzo_creazione and canvas_schizzo_result is not None and canvas_schizzo_result.image_data is not None and id_infissi_creati:
+                primo_id, primo_nome = id_infissi_creati[0]
+                salva_schizzo(canvas_schizzo_result.image_data, cartella_progetto, primo_nome, "infissi", primo_id)
+                if int(quantita) > 1:
+                    st.info(f"Schizzo associato solo a **{primo_nome}**. Per gli altri, usa Modifica.")
+
             st.session_state["foto_key_counter"] += 1
             st.session_state["foto_catturate"] = []
             st.session_state["fotocamera_aperta"] = True
 
-            st.success(f"{int(quantita)} infisso/i aggiunto/i! Aggiungi uno schizzo dopo, da \"🖌️\" nell'elenco.")
+            st.success(f"{int(quantita)} infisso/i aggiunto/i!")
             st.rerun()
 
 
-@st.dialog("Dettagli infisso", width="large")
+@st.dialog("Modifica infisso", width="large")
 def dialog_dettagli_infisso(inf, cartella_progetto):
     nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
     st.markdown(f"### {nome_visualizzato}")
 
-    tab_misure, tab_foto = st.tabs(["📏 Misure", "📷 Foto"])
+    st.markdown("#### 📏 Misure")
+    col1, col2 = st.columns(2)
+    with col1:
+        nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
+    with col2:
+        nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
 
-    with tab_misure:
-        col1, col2 = st.columns(2)
-        with col1:
-            nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
-        with col2:
-            nuova_altezza = st.number_input("Altezza (cm)", value=float(inf['altezza_cm']), key=f"alt_{inf['id']}")
+    mq_live = (nuova_larghezza / 100) * (nuova_altezza / 100)
+    st.caption(f"Superficie: **{mq_live:.2f} m²**")
 
-        mq_live = (nuova_larghezza / 100) * (nuova_altezza / 100)
-        st.caption(f"Superficie: **{mq_live:.2f} m²**")
+    nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}", height=80)
 
-        nuove_note = st.text_area("Note", value=inf['note'] or "", key=f"note_{inf['id']}", height=80)
+    col_salva, col_elimina = st.columns(2)
+    with col_salva:
+        if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}", use_container_width=True, type="primary"):
+            supabase.table("infissi").update({
+                "larghezza_cm": nuova_larghezza,
+                "altezza_cm": nuova_altezza,
+                "note": nuove_note
+            }).eq("id", inf['id']).execute()
+            st.success("Modificato!")
+            st.rerun()
+    with col_elimina:
+        if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}", use_container_width=True):
+            supabase.table("infissi").delete().eq("id", inf['id']).execute()
+            st.rerun()
 
-        st.write("")
-        col_salva, col_elimina = st.columns(2)
-        with col_salva:
-            if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}", use_container_width=True, type="primary"):
-                supabase.table("infissi").update({
-                    "larghezza_cm": nuova_larghezza,
-                    "altezza_cm": nuova_altezza,
-                    "note": nuove_note
-                }).eq("id", inf['id']).execute()
-                st.success("Modificato!")
-                st.rerun()
-        with col_elimina:
-            if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}", use_container_width=True):
-                supabase.table("infissi").delete().eq("id", inf['id']).execute()
-                st.rerun()
+    st.divider()
+    st.markdown("#### 📷 Foto")
 
-    with tab_foto:
-        if inf.get('foto_url'):
-            st.image(inf['foto_url'], width=220)
-        else:
-            st.caption("Nessuna foto ancora.")
+    if inf.get('foto_url'):
+        st.image(inf['foto_url'], width=220)
+    else:
+        st.caption("Nessuna foto ancora.")
 
-        metodo_foto_inf = st.radio(
-            "Aggiungi/cambia foto", ["Carica da file", "Scatta foto"],
-            horizontal=True, key=f"metodo_foto_{inf['id']}"
-        )
+    metodo_foto_inf = st.radio(
+        "Aggiungi/cambia foto", ["Carica da file", "Scatta foto"],
+        horizontal=True, key=f"metodo_foto_{inf['id']}"
+    )
 
-        if metodo_foto_inf == "Carica da file":
-            foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
-        else:
-            foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
+    if metodo_foto_inf == "Carica da file":
+        foto_caricata = st.file_uploader("Carica foto", type=["jpg", "jpeg", "png"], key=f"foto_{inf['id']}")
+    else:
+        foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
 
-        if foto_caricata is not None:
-            if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}", use_container_width=True, type="primary"):
-                carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
-                st.success("Foto caricata!")
-                st.rerun()
+    if foto_caricata is not None:
+        if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}", use_container_width=True, type="primary"):
+            carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
+            st.success("Foto caricata!")
+            st.rerun()
 
-
-@st.dialog("✏️ Schizzo infisso", width="large")
-def dialog_schizzo_infisso(inf, cartella_progetto):
-    nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
-    st.markdown(f"### {nome_visualizzato}")
+    st.divider()
+    st.markdown("#### ✏️ Schizzo")
     pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
 
 
@@ -429,7 +462,7 @@ else:
                 nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
 
                 with st.container(border=True):
-                    col_info, col_azioni = st.columns([3, 2.2])
+                    col_info, col_azioni = st.columns([3, 1.4])
                     with col_info:
                         badge_riga = ""
                         if inf.get('foto_url'):
@@ -446,14 +479,11 @@ else:
                             unsafe_allow_html=True
                         )
                     with col_azioni:
-                        b1, b2, b3 = st.columns(3)
+                        b1, b2 = st.columns(2)
                         with b1:
                             if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
                                 dialog_dettagli_infisso(inf, cartella_progetto)
                         with b2:
-                            if st.button("🖌️", key=f"schiz_{inf['id']}", use_container_width=True, help="Schizzo"):
-                                dialog_schizzo_infisso(inf, cartella_progetto)
-                        with b3:
                             if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
                                 esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
                                 numero_nuovo = len(esistenti.data) + 1
