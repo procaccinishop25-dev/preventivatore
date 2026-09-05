@@ -17,6 +17,8 @@ html, body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg);
   color: var(--text);
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #app {
@@ -33,6 +35,9 @@ html, body {
   background-color: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 #editor-title {
@@ -88,6 +93,9 @@ html, body {
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 9;
 }
 
 .tool-btn {
@@ -101,6 +109,7 @@ html, body {
   background-color: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  touch-action: manipulation;
 }
 .tool-btn svg { width: 20px; height: 20px; }
 .tool-btn:hover { background-color: var(--bg); }
@@ -115,6 +124,7 @@ html, body {
   height: 28px;
   background-color: var(--border);
   margin: 0 6px;
+  flex-shrink: 0;
 }
 
 .color-palette {
@@ -130,6 +140,7 @@ html, body {
   border: 2px solid var(--border);
   cursor: pointer;
   padding: 0;
+  touch-action: manipulation;
 }
 .color-btn.color-btn-white { border-color: #CBD5E1; }
 .color-btn.active {
@@ -146,6 +157,7 @@ html, body {
   padding: 12px;
   overflow: auto;
   background-color: var(--bg);
+  -webkit-overflow-scrolling: touch;
 }
 
 #fabric-canvas {
@@ -153,6 +165,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(23, 32, 51, 0.06);
+  touch-action: none;
 }
 
 #status-bar {
