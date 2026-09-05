@@ -36,6 +36,10 @@ html, body {
 
 #editor-title {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   font-size: 15px;
   color: var(--text);
@@ -52,6 +56,7 @@ html, body {
   background-color: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
+  flex-shrink: 0;
 }
 .icon-btn:hover { background-color: var(--bg); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -68,6 +73,7 @@ html, body {
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .btn-primary:hover { background-color: var(--brand-red-hover); }
 .btn-primary svg { width: 16px; height: 16px; }
@@ -144,6 +150,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(23, 32, 51, 0.06);
+  max-width: 100%;
 }
 
 #status-bar {
@@ -154,4 +161,15 @@ html, body {
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* --- Schermi stretti (telefono) --- */
+@media (max-width: 480px) {
+  #header { padding: 8px 10px; gap: 8px; }
+  .btn-primary { padding: 7px 12px; font-size: 13px; }
+  #toolbar { padding: 6px 10px; gap: 4px; }
+  .tool-btn { width: 36px; height: 36px; }
+  .tool-btn svg { width: 17px; height: 17px; }
+  .color-btn { width: 24px; height: 24px; }
+  #canvas-wrapper { padding: 8px; }
 }
