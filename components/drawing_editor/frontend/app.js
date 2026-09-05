@@ -1,10 +1,22 @@
 (function () {
   let initialized = false;
 
+  function ottieniAltezzaViewportReale() {
+    try {
+      if (window.parent && window.parent !== window) {
+        return window.parent.innerHeight;
+      }
+    } catch (e) {
+      // Accesso bloccato: uso il fallback qui sotto.
+    }
+    return window.innerHeight || window.screen.availHeight || 800;
+  }
+
   function calcolaAltezzaTarget() {
-    const altezzaSchermo = window.screen.availHeight || window.screen.height || 800;
-    let altezza = Math.round(altezzaSchermo * 0.85);
-    altezza = Math.max(500, Math.min(altezza, 900));
+    const altezzaViewport = ottieniAltezzaViewportReale();
+    const margineSicurezza = 70; // spazio per l'intestazione della pagina Streamlit sopra il componente
+    let altezza = altezzaViewport - margineSicurezza;
+    altezza = Math.max(420, Math.min(altezza, 900));
     return altezza;
   }
 
