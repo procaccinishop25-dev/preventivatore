@@ -39,31 +39,46 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=220, caption="Schizzo attuale")
 
-    strumento = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_{key_prefix}")
+    col_strumento, col_colore = st.columns([3, 1])
+    with col_strumento:
+        strumento = st.radio(
+            "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
+            horizontal=True, key=f"strumento_{key_prefix}"
+        )
+    with col_colore:
+        if strumento != "Gomma":
+            colore = st.color_picker("Colore", "#000000", key=f"colore_{key_prefix}")
+        else:
+            colore = "#FFFFFF"
 
     if strumento == "Penna":
         spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_{key_prefix}")
-        colore = "#000000"
         modalita = "freedraw"
     elif strumento == "Gomma":
         spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_{key_prefix}")
-        colore = "#FFFFFF"
         modalita = "freedraw"
+    elif strumento == "Rettangolo":
+        spessore = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_rect_{key_prefix}")
+        modalita = "rect"
+    elif strumento == "Cerchio":
+        spessore = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_circle_{key_prefix}")
+        modalita = "circle"
     else:
         spessore = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_{key_prefix}")
-        colore = "#000000"
         modalita = "line"
 
     if strumento == "Linea dritta":
         st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
+    elif strumento in ("Rettangolo", "Cerchio"):
+        st.caption("Trascina per disegnare la forma. Per un quadrato/cerchio perfetto, trascina in diagonale uguale.")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        height=320,
-        width=460,
+        height=480,
+        width=640,
         drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
@@ -195,31 +210,46 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
 
     canvas_schizzo_result = None
     if mostra_schizzo_creazione:
-        strumento_s = st.radio("Strumento", ["Penna", "Gomma", "Linea dritta"], horizontal=True, key=f"strumento_new_{contatore}")
+        col_strumento_s, col_colore_s = st.columns([3, 1])
+        with col_strumento_s:
+            strumento_s = st.radio(
+                "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
+                horizontal=True, key=f"strumento_new_{contatore}"
+            )
+        with col_colore_s:
+            if strumento_s != "Gomma":
+                colore_s = st.color_picker("Colore", "#000000", key=f"colore_new_{contatore}")
+            else:
+                colore_s = "#FFFFFF"
 
         if strumento_s == "Penna":
             spessore_s = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_new_{contatore}")
-            colore_s = "#000000"
             modalita_s = "freedraw"
         elif strumento_s == "Gomma":
             spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_new_{contatore}")
-            colore_s = "#FFFFFF"
             modalita_s = "freedraw"
+        elif strumento_s == "Rettangolo":
+            spessore_s = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_rect_new_{contatore}")
+            modalita_s = "rect"
+        elif strumento_s == "Cerchio":
+            spessore_s = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_circle_new_{contatore}")
+            modalita_s = "circle"
         else:
             spessore_s = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_new_{contatore}")
-            colore_s = "#000000"
             modalita_s = "line"
 
         if strumento_s == "Linea dritta":
             st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
+        elif strumento_s in ("Rettangolo", "Cerchio"):
+            st.caption("Trascina per disegnare la forma. Per un quadrato/cerchio perfetto, trascina in diagonale uguale.")
 
         canvas_schizzo_result = st_canvas(
             fill_color="rgba(255, 255, 255, 0)",
             stroke_width=spessore_s,
             stroke_color=colore_s,
             background_color="#FFFFFF",
-            height=300,
-            width=440,
+            height=400,
+            width=600,
             drawing_mode=modalita_s,
             display_toolbar=True,
             key=f"canvas_new_{contatore}"
