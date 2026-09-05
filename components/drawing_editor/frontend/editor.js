@@ -28,6 +28,13 @@ const DrawingEditor = (function () {
     return canvas;
   }
 
+  function resize(width, height) {
+    if (!canvas) return;
+    canvas.setWidth(width);
+    canvas.setHeight(height);
+    canvas.renderAll();
+  }
+
   function pushHistoryIfNeeded() {
     if (isRestoring) return;
     pushHistory();
@@ -221,5 +228,5 @@ const DrawingEditor = (function () {
     return canvas.toJSON();
   }
 
-  return { init, loadState, loadImageAsObject, addPhotoFromDataUrl, setTool, setColor, undo, redo, exportPNG, exportState };
+  return { init, resize, loadState, loadImageAsObject, addPhotoFromDataUrl, setTool, setColor, undo, redo, exportPNG, exportState };
 })();
