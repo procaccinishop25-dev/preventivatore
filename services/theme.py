@@ -73,9 +73,7 @@ def apply_custom_theme():
         font-weight: 600 !important;
         letter-spacing: -0.02em;
     }
-    /* Page title: solo leggermente più grande del corpo, non "urlato" */
     h1 { font-size: 1.35rem !important; margin-bottom: 2px !important; line-height: 1.35; font-weight: 650 !important; }
-    /* Section title: quiet, colore intermedio non nero pieno */
     h2 {
         font-size: 0.95rem !important;
         margin-top: var(--space-6) !important;
@@ -83,7 +81,6 @@ def apply_custom_theme():
         color: var(--color-text-quiet) !important;
         font-weight: 600 !important;
     }
-    /* Card title */
     h3 { font-size: 0.88rem !important; margin-top: var(--space-3) !important; margin-bottom: var(--space-1) !important; color: var(--color-text) !important; font-weight: 600 !important; }
 
     p, .stMarkdown, label { color: var(--color-text); font-size: 0.87rem; letter-spacing: -0.005em; }
@@ -175,7 +172,6 @@ def apply_custom_theme():
         flex-shrink: 0;
     }
 
-    /* --- CTA primaria in sidebar: "Nuovo progetto" sempre evidenziato --- */
     .sidebar-cta-primary { margin: var(--space-1) var(--space-2) var(--space-2) var(--space-2); }
     .sidebar-cta-primary [data-testid="stPageLink"] {
         background-color: var(--color-primary-light) !important;
@@ -191,8 +187,12 @@ def apply_custom_theme():
         background-color: #FDE3E0 !important;
     }
 
-    /* ============== BOTTONI — 3 livelli, compatti (36px) ============== */
-    .stApp button {
+    /* ============== BOTTONI — 3 livelli, compatti (36px) ==============
+       NOTA: nessun prefisso ".stApp" — i dialog di Streamlit vengono
+       renderizzati FUORI da .stApp (in un portal a parte), quindi uno
+       scoping su .stApp impedisce a queste regole di applicarsi dentro
+       le finestre modali. Selettori globali, corretti ovunque. */
+    button {
         border-radius: var(--radius-md) !important;
         min-height: 36px !important;
         height: 36px;
@@ -204,33 +204,29 @@ def apply_custom_theme():
         background-color: var(--color-surface);
         box-shadow: none !important;
     }
-    .stApp button p, .stApp button div, .stApp button span { color: var(--color-text-quiet); }
-    .stApp button:hover {
+    button p, button div, button span { color: var(--color-text-quiet); }
+    button:hover {
         background-color: var(--color-bg);
         border-color: var(--color-border-hover);
     }
-    .stApp button:focus-visible {
+    button:focus-visible {
         outline: none;
         box-shadow: 0 0 0 3px var(--focus-ring) !important;
     }
-    .stApp button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* Primary: pieno, rosso brand */
-    .stApp button[kind*="primary"] {
+    button[kind*="primary"] {
         background-color: var(--color-primary) !important;
         border-color: var(--color-primary) !important;
     }
-    .stApp button[kind*="primary"] p,
-    .stApp button[kind*="primary"] div,
-    .stApp button[kind*="primary"] span { color: #FFFFFF !important; }
-    .stApp button[kind*="primary"]:hover {
+    button[kind*="primary"] p,
+    button[kind*="primary"] div,
+    button[kind*="primary"] span { color: #FFFFFF !important; }
+    button[kind*="primary"]:hover {
         background-color: var(--color-primary-hover) !important;
         border-color: var(--color-primary-hover) !important;
     }
 
-    /* Secondary: è il bottone di default sopra — bordo sottile, nessun riempimento */
-
-    /* Ghost: nessun bordo visibile, solo sfondo leggero all'hover — applicata via classe wrapper */
     .btn-ghost button {
         border-color: transparent !important;
         background-color: transparent !important;
@@ -257,12 +253,10 @@ def apply_custom_theme():
         box-shadow: var(--shadow-sm);
         transition: border-color 120ms ease;
     }
-    /* Nessun aumento di ombra al passaggio del mouse: solo il bordo si fa leggermente più visibile */
     [data-testid="stVerticalBlockBorderWrapper"]:hover {
         border-color: var(--color-border-hover) !important;
     }
 
-    /* Righe di lista: azioni rivelate al hover su desktop, sempre visibili su touch */
     .row-actions { opacity: 0.35; transition: opacity 120ms ease; }
     [data-testid="stVerticalBlockBorderWrapper"]:hover .row-actions { opacity: 1; }
     @media (hover: none) {
@@ -291,7 +285,11 @@ def apply_custom_theme():
         display: inline-block;
     }
 
-    /* ============== INPUT / FORM ============== */
+    /* ============== INPUT / FORM (nessun prefisso .stApp, stesso motivo) ============== */
+    input, textarea {
+        accent-color: var(--color-primary);
+    }
+
     [data-testid="stTextInput"] input,
     [data-testid="stNumberInput"] input,
     [data-testid="stTextArea"] textarea,
@@ -321,6 +319,15 @@ def apply_custom_theme():
         font-weight: 500 !important;
         color: var(--color-text-quiet) !important;
         margin-bottom: 3px !important;
+    }
+
+    /* Selectbox: evidenziazione opzione attiva nel menu a tendina aperto */
+    [data-baseweb="menu"] [aria-selected="true"] {
+        background-color: var(--color-primary-light) !important;
+        color: var(--color-primary-hover) !important;
+    }
+    [data-baseweb="menu"] li:hover {
+        background-color: var(--color-bg) !important;
     }
 
     /* ============== EXPANDER ============== */
@@ -359,6 +366,8 @@ def apply_custom_theme():
 
     /* ============== TABS / DIALOG ============== */
     [data-testid="stTabs"] button[role="tab"] { font-size: 0.84rem; font-weight: 450; }
+    [data-testid="stTabs"] button[aria-selected="true"] { color: var(--color-primary) !important; }
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: var(--color-primary) !important; }
 
     div[role="dialog"] { border-radius: var(--radius-lg) !important; }
 
