@@ -1,6 +1,5 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme
 from components.drawing_editor import drawing_editor
 import base64
 import json
@@ -44,7 +43,24 @@ def salva_png_e_stato(png_base64, state_json_str, cartella, nome_file, tabella, 
 
 
 st.set_page_config(page_title="Editor Schizzo", page_icon="✏️", layout="wide")
-apply_custom_theme()
+
+# CSS isolato SOLO a questa pagina: azzera i margini/padding di Streamlit
+# intorno al componente, così l'editor può occupare tutto lo spazio visibile.
+# Non tocca il tema globale né le altre pagine.
+st.markdown("""
+<style>
+    header[data-testid="stHeader"] { display: none; }
+    .main .block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+    }
+    iframe {
+        width: 100% !important;
+        border: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 target = st.session_state.get("editor_schizzo_target")
 
