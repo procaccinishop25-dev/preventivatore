@@ -261,12 +261,7 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
     st.divider()
     st.markdown("#### ✏️ Schizzo")
 
-    if inf.get('schizzo_url'):
-        st.image(inf['schizzo_url'], width=220, caption="Schizzo attuale")
-    else:
-        st.caption("Nessuno schizzo ancora.")
-
-    if st.button("🖌️ Apri editor schizzo a schermo intero", key=f"apri_editor_{inf['id']}", use_container_width=True, type="primary"):
+    def _apri_editor_schizzo():
         st.session_state["editor_schizzo_target"] = {
             "tabella": "infissi",
             "record_id": inf['id'],
@@ -275,6 +270,15 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
             "url_esistente": inf.get('schizzo_url'),
         }
         st.switch_page("pages/8_Editor_Schizzo.py")
+
+    if inf.get('schizzo_url'):
+        st.image(inf['schizzo_url'], width=220, caption="Schizzo attuale")
+        if st.button("✏️ Modifica questo schizzo", key=f"modifica_schizzo_esistente_{inf['id']}", use_container_width=True, type="primary"):
+            _apri_editor_schizzo()
+    else:
+        st.caption("Nessuno schizzo ancora.")
+        if st.button("🖌️ Apri editor schizzo a schermo intero", key=f"apri_editor_{inf['id']}", use_container_width=True, type="primary"):
+            _apri_editor_schizzo()
 
 
 @st.dialog("💸 Aggiungi maggiorazione")
