@@ -108,6 +108,8 @@ const DrawingEditor = (function () {
     currentTool = tool;
     canvas.isDrawingMode = false;
     canvas.selection = true;
+    canvas.defaultCursor = "default";
+    canvas.hoverCursor = "move";
     canvas.forEachObject(function (obj) { obj.selectable = true; });
 
     if (tool === "pen") {
@@ -117,6 +119,8 @@ const DrawingEditor = (function () {
       canvas.freeDrawingBrush.color = currentColor;
     } else if (tool === "eraser") {
       canvas.selection = false;
+      canvas.defaultCursor = "crosshair";
+      canvas.hoverCursor = "crosshair";
       canvas.forEachObject(function (obj) { obj.selectable = false; });
     }
   }
