@@ -28,6 +28,13 @@ const ToolbarUI = (function () {
         document.querySelectorAll(".color-btn").forEach(function (b) { b.classList.remove("active"); });
         btn.classList.add("active");
         DrawingEditor.setColor(btn.getAttribute("data-color"));
+
+        // Ri-applica lo strumento attualmente attivo, così resta subito utilizzabile
+        // senza bisogno di ricliccarlo dopo aver cambiato colore.
+        const toolAttivoBtn = document.querySelector(".tool-btn.active");
+        if (toolAttivoBtn) {
+          DrawingEditor.setTool(toolAttivoBtn.getAttribute("data-tool"));
+        }
       });
     });
 
