@@ -19,6 +19,45 @@ def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infi
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
 
 
+def crea_infissi_e_foto(progetto_id, cartella_progetto, tipologia, quantita, larghezza, altezza, note_inf, metodo_foto, foto_multiple_da_file):
+    lista_foto = []
+    if metodo_foto == "Carica da file" and foto_multiple_da_file:
+        for f in foto_multiple_da_file:
+            lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
+    elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
+        lista_foto = st.session_state["foto_catturate"]
+
+    esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
+    numero_iniziale = len(esistenti.data) + 1
+
+    id_infissi_creati = []
+    for i in range(int(quantita)):
+        numero = numero_iniziale + i
+        nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
+        nuovo = supabase.table("infissi").insert({
+            "progetto_id": progetto_id,
+            "tipologia": tipologia,
+            "numero_infisso": numero,
+            "nome": nome_infisso,
+            "larghezza_cm": larghezza,
+            "altezza_cm": altezza,
+            "quantita": 1,
+            "note": note_inf
+        }).execute()
+        id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
+
+    for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
+        if idx < len(lista_foto):
+            foto = lista_foto[idx]
+            carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
+
+    st.session_state["foto_key_counter"] += 1
+    st.session_state["foto_catturate"] = []
+    st.session_state["fotocamera_aperta"] = True
+
+    return id_infissi_creati
+
+
 @st.dialog("➕ Aggiungi infisso", width="large")
 def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
     if "foto_key_counter" not in st.session_state:
@@ -29,33 +68,6 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
         st.session_state["camera_shot_counter"] = 0
     if "fotocamera_aperta" not in st.session_state:
         st.session_state["fotocamera_aperta"] = True
-    if "infisso_appena_creato" not in st.session_state:
-        st.session_state["infisso_appena_creato"] = None
-
-    # --- Se abbiamo appena creato un infisso, mostra la scelta invece del form ---
-    if st.session_state["infisso_appena_creato"] is not None:
-        creato = st.session_state["infisso_appena_creato"]
-        st.success(f"{creato['quantita']} infisso/i aggiunto/i!")
-        if creato['quantita'] > 1:
-            st.caption(f"Lo schizzo, se lo aggiungi ora, verrà associato solo al primo: **{creato['primo_nome']}**.")
-
-        col_schizzo, col_chiudi = st.columns(2)
-        with col_schizzo:
-            if st.button("✏️ Aggiungi schizzo ora", type="primary", use_container_width=True):
-                st.session_state["editor_schizzo_target"] = {
-                    "tabella": "infissi",
-                    "record_id": creato['primo_id'],
-                    "cartella": cartella_progetto,
-                    "nome_file": creato['primo_nome'],
-                    "url_esistente": None,
-                }
-                st.session_state["infisso_appena_creato"] = None
-                st.switch_page("pages/8_Editor_Schizzo.py")
-        with col_chiudi:
-            if st.button("Chiudi", use_container_width=True):
-                st.session_state["infisso_appena_creato"] = None
-                st.rerun()
-        return
 
     contatore = st.session_state["foto_key_counter"]
 
@@ -158,52 +170,36 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                         st.rerun()
 
     st.write("")
-    if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
+    col_normale, col_schizzo = st.columns(2)
+    with col_normale:
+        premuto_normale = st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}")
+    with col_schizzo:
+        premuto_con_schizzo = st.button("✏️ Aggiungi e disegna schizzo", use_container_width=True, key=f"conferma_add_schizzo_{contatore}")
+
+    if premuto_normale or premuto_con_schizzo:
         if not tipologia:
             st.warning("Inserisci un nome per la tipologia personalizzata prima di continuare.")
         else:
-            lista_foto = []
-            if metodo_foto == "Carica da file" and foto_multiple_da_file:
-                for f in foto_multiple_da_file:
-                    lista_foto.append({"bytes": f.getvalue(), "type": f.type, "name": f.name})
-            elif metodo_foto == "Scatta foto" and st.session_state["foto_catturate"]:
-                lista_foto = st.session_state["foto_catturate"]
+            id_infissi_creati = crea_infissi_e_foto(
+                progetto_id, cartella_progetto, tipologia, quantita, larghezza, altezza,
+                note_inf, metodo_foto, foto_multiple_da_file
+            )
 
-            esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", tipologia).execute()
-            numero_iniziale = len(esistenti.data) + 1
-
-            id_infissi_creati = []
-            for i in range(int(quantita)):
-                numero = numero_iniziale + i
-                nome_infisso = f"{tipologia.replace('-', ' ')} {numero:02d}"
-                nuovo = supabase.table("infissi").insert({
-                    "progetto_id": progetto_id,
-                    "tipologia": tipologia,
-                    "numero_infisso": numero,
-                    "nome": nome_infisso,
-                    "larghezza_cm": larghezza,
-                    "altezza_cm": altezza,
-                    "quantita": 1,
-                    "note": note_inf
-                }).execute()
-                id_infissi_creati.append((nuovo.data[0]["id"], nome_infisso))
-
-            for idx, (infisso_id, nome_infisso) in enumerate(id_infissi_creati):
-                if idx < len(lista_foto):
-                    foto = lista_foto[idx]
-                    carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
-
-            st.session_state["foto_key_counter"] += 1
-            st.session_state["foto_catturate"] = []
-            st.session_state["fotocamera_aperta"] = True
-
-            primo_id, primo_nome = id_infissi_creati[0]
-            st.session_state["infisso_appena_creato"] = {
-                "primo_id": primo_id,
-                "primo_nome": primo_nome,
-                "quantita": int(quantita),
-            }
-            st.rerun()
+            if premuto_con_schizzo:
+                primo_id, primo_nome = id_infissi_creati[0]
+                if int(quantita) > 1:
+                    st.info(f"Lo schizzo verrà associato solo al primo infisso: **{primo_nome}**.")
+                st.session_state["editor_schizzo_target"] = {
+                    "tabella": "infissi",
+                    "record_id": primo_id,
+                    "cartella": cartella_progetto,
+                    "nome_file": primo_nome,
+                    "url_esistente": None,
+                }
+                st.switch_page("pages/8_Editor_Schizzo.py")
+            else:
+                st.success(f"{int(quantita)} infisso/i aggiunto/i!")
+                st.rerun()
 
 
 @st.dialog("Modifica infisso", width="large")
