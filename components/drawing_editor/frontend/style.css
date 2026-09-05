@@ -22,26 +22,29 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* ==================================================
+   LAYOUT FONDAMENTALE: header + canvas + toolbar = 100dvh,
+   sempre, senza eccezioni per dispositivo.
+   ================================================== */
 #app {
-  position: fixed;
-  inset: 0;
   height: 100dvh;
   width: 100vw;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   overflow: hidden;
 }
 
 #header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top));
   background-color: var(--surface);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  z-index: 20;
 }
 
 #header-left {
@@ -95,37 +98,71 @@ html, body {
 .btn-primary:active { background-color: var(--brand-red-hover); }
 .btn-primary svg { width: 15px; height: 15px; }
 
-/* --- Area canvas: occupa tutto lo spazio restante --- */
+/* --- Area canvas: prende TUTTO lo spazio che rimane --- */
 #canvas-wrapper {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   position: relative;
   overflow: hidden;
   background-color: var(--bg);
   touch-action: none;
 }
 
-#fabric-canvas-container {
+#zoom-controls {
   position: absolute;
-  top: 0;
-  left: 0;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
+  z-index: 5;
 }
 
-/* --- Toolbar: pillola flottante (desktop/tablet) --- */
+.zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.zoom-btn:active { background-color: var(--bg); }
+
+#zoom-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  min-width: 38px;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* --- Toolbar: FRATELLO del canvas, non sovrapposto.
+   Occupa sempre la sua vera altezza nel flex layout. --- */
 #toolbar {
-  position: absolute;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-bottom: 14px;
   padding: 8px;
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
   box-shadow: 0 4px 16px rgba(23, 32, 51, 0.12);
-  z-index: 15;
   max-width: calc(100vw - 24px);
   overflow-x: auto;
 }
@@ -182,54 +219,14 @@ html, body {
   box-shadow: 0 0 0 2px rgba(217, 54, 54, 0.2);
 }
 
-/* --- Controlli zoom: barra separata in basso a destra --- */
-#zoom-controls {
-  position: absolute;
-  right: 12px;
-  bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px;
-  box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
-  z-index: 15;
-}
-
-.zoom-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  border: none;
-  background-color: transparent;
-  color: var(--text-secondary);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.zoom-btn:active { background-color: var(--bg); }
-
-#zoom-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 0 6px;
-  min-width: 40px;
-  text-align: center;
-  cursor: pointer;
-}
-
-/* --- Tablet: pillola più grande per il tocco --- */
+/* --- Tablet: pulsanti più grandi per il tocco, resta docked --- */
 @media (min-width: 481px) and (max-width: 900px) {
   #toolbar { gap: 6px; padding: 10px; }
   .tool-btn { width: 48px; height: 48px; }
 }
 
-/* --- Mobile: toolbar diventa bottom bar fissa a tutta larghezza --- */
+/* --- Mobile: toolbar a piena larghezza, ancorata in basso,
+   ma SEMPRE dentro il flex layout (mai fixed/overlay) --- */
 @media (max-width: 480px) {
   #header { padding: 6px 10px; gap: 6px; }
   #editor-title { font-size: 13px; }
@@ -237,26 +234,19 @@ html, body {
   .btn-primary { padding: 6px 10px; font-size: 12px; }
 
   #toolbar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    transform: none;
-    width: 100%;
-    max-width: 100%;
+    align-self: stretch;
+    margin-bottom: 0;
     border-radius: 0;
     border: none;
     border-top: 1px solid var(--border);
     box-shadow: 0 -2px 10px rgba(23, 32, 51, 0.08);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
     justify-content: flex-start;
+    max-width: 100%;
   }
 
   .tool-btn { width: 42px; height: 42px; min-width: 42px; }
   .color-btn { width: 24px; height: 24px; }
 
-  #zoom-controls {
-    bottom: calc(64px + env(safe-area-inset-bottom));
-    right: 8px;
-  }
+  #zoom-controls { bottom: 8px; right: 8px; }
 }
