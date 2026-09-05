@@ -2,6 +2,7 @@ import streamlit as st
 from services.supabase import supabase
 from services.theme import apply_custom_theme, badge
 from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
+from streamlit_image_coordinates import streamlit_image_coordinates
 import re
 
 
@@ -272,8 +273,11 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
         st.switch_page("pages/8_Editor_Schizzo.py")
 
     if inf.get('schizzo_url'):
-        st.image(inf['schizzo_url'], width=220, caption="Schizzo attuale")
-        if st.button("✏️ Modifica questo schizzo", key=f"modifica_schizzo_esistente_{inf['id']}", use_container_width=True, type="primary"):
+        st.caption("👆 Tocca l'anteprima per modificare lo schizzo")
+        chiave_ultimo_click = f"ultimo_click_schizzo_{inf['id']}"
+        click = streamlit_image_coordinates(inf['schizzo_url'], key=f"click_schizzo_{inf['id']}", width=220)
+        if click is not None and click != st.session_state.get(chiave_ultimo_click):
+            st.session_state[chiave_ultimo_click] = click
             _apri_editor_schizzo()
     else:
         st.caption("Nessuno schizzo ancora.")
