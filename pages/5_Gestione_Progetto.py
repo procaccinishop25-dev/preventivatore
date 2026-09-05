@@ -35,6 +35,31 @@ def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
     supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
 
 
+def selettore_colore(key_prefix):
+    """Palette di colori a pallini cliccabili, invece del selettore hex."""
+    colori = [
+        ("Nero", "#000000", "⚫"),
+        ("Rosso", "#DC2626", "🔴"),
+        ("Blu", "#2563EB", "🔵"),
+        ("Verde", "#16A34A", "🟢"),
+        ("Giallo", "#F59E0B", "🟡"),
+        ("Viola", "#7C3AED", "🟣"),
+    ]
+    chiave_stato = f"colore_scelto_{key_prefix}"
+    if chiave_stato not in st.session_state:
+        st.session_state[chiave_stato] = "#000000"
+
+    st.caption("Colore")
+    cols = st.columns(len(colori))
+    for idx, (nome_c, hex_c, emoji_c) in enumerate(colori):
+        with cols[idx]:
+            if st.button(emoji_c, key=f"colore_btn_{key_prefix}_{idx}", help=nome_c, use_container_width=True):
+                st.session_state[chiave_stato] = hex_c
+                st.rerun()
+
+    return st.session_state[chiave_stato]
+
+
 def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
     if isinstance(url_esistente, str) and url_esistente.startswith("http"):
         st.image(url_esistente, width=220, caption="Schizzo attuale")
@@ -45,7 +70,7 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
     )
 
     if strumento != "Gomma":
-        colore = st.color_picker("Colore", "#000000", key=f"colore_{key_prefix}")
+        colore = selettore_colore(key_prefix)
     else:
         colore = "#FFFFFF"
 
@@ -75,8 +100,8 @@ def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_es
         stroke_width=spessore,
         stroke_color=colore,
         background_color="#FFFFFF",
-        height=480,
-        width=640,
+        height=420,
+        width=560,
         drawing_mode=modalita,
         display_toolbar=True,
         key=f"canvas_{key_prefix}"
@@ -202,55 +227,6 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                         st.session_state["foto_catturate"] = []
                         st.rerun()
 
-    st.divider()
-    st.caption("✏️ Schizzo (opzionale) — con più pezzi, viene salvato solo sul primo")
-    mostra_schizzo_creazione = st.checkbox("Aggiungi anche uno schizzo", key=f"mostra_schizzo_new_{contatore}")
-
-    canvas_schizzo_result = None
-    if mostra_schizzo_creazione:
-        strumento_s = st.radio(
-            "Strumento", ["Penna", "Gomma", "Linea dritta", "Rettangolo", "Cerchio"],
-            horizontal=True, key=f"strumento_new_{contatore}"
-        )
-
-        if strumento_s != "Gomma":
-            colore_s = st.color_picker("Colore", "#000000", key=f"colore_new_{contatore}")
-        else:
-            colore_s = "#FFFFFF"
-
-        if strumento_s == "Penna":
-            spessore_s = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_penna_new_{contatore}")
-            modalita_s = "freedraw"
-        elif strumento_s == "Gomma":
-            spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_gomma_new_{contatore}")
-            modalita_s = "freedraw"
-        elif strumento_s == "Rettangolo":
-            spessore_s = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_rect_new_{contatore}")
-            modalita_s = "rect"
-        elif strumento_s == "Cerchio":
-            spessore_s = st.slider("Spessore bordo", 1, 15, 3, key=f"spessore_circle_new_{contatore}")
-            modalita_s = "circle"
-        else:
-            spessore_s = st.slider("Spessore linea", 1, 15, 3, key=f"spessore_linea_new_{contatore}")
-            modalita_s = "line"
-
-        if strumento_s == "Linea dritta":
-            st.caption("Trascina da un punto all'altro: la linea uscirà sempre perfettamente dritta.")
-        elif strumento_s in ("Rettangolo", "Cerchio"):
-            st.caption("Trascina per disegnare la forma. Per un quadrato/cerchio perfetto, trascina in diagonale uguale.")
-
-        canvas_schizzo_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=spessore_s,
-            stroke_color=colore_s,
-            background_color="#FFFFFF",
-            height=400,
-            width=600,
-            drawing_mode=modalita_s,
-            display_toolbar=True,
-            key=f"canvas_new_{contatore}"
-        )
-
     st.write("")
     if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
         if not tipologia:
@@ -287,17 +263,11 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                     foto = lista_foto[idx]
                     carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
 
-            if mostra_schizzo_creazione and canvas_schizzo_result is not None and canvas_schizzo_result.image_data is not None and id_infissi_creati:
-                primo_id, primo_nome = id_infissi_creati[0]
-                salva_schizzo(canvas_schizzo_result.image_data, cartella_progetto, primo_nome, "infissi", primo_id)
-                if int(quantita) > 1:
-                    st.info(f"Schizzo associato solo a **{primo_nome}**. Per gli altri, usa Modifica → Schizzo.")
-
             st.session_state["foto_key_counter"] += 1
             st.session_state["foto_catturate"] = []
             st.session_state["fotocamera_aperta"] = True
 
-            st.success(f"{int(quantita)} infisso/i aggiunto/i!")
+            st.success(f"{int(quantita)} infisso/i aggiunto/i! Aggiungi uno schizzo dopo, da \"🖌️\" nell'elenco.")
             st.rerun()
 
 
@@ -306,7 +276,7 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
     nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
     st.markdown(f"### {nome_visualizzato}")
 
-    tab_misure, tab_foto, tab_schizzo = st.tabs(["📏 Misure", "📷 Foto", "✏️ Schizzo"])
+    tab_misure, tab_foto = st.tabs(["📏 Misure", "📷 Foto"])
 
     with tab_misure:
         col1, col2 = st.columns(2)
@@ -358,8 +328,12 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
                 st.success("Foto caricata!")
                 st.rerun()
 
-    with tab_schizzo:
-        pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
+
+@st.dialog("✏️ Schizzo infisso", width="large")
+def dialog_schizzo_infisso(inf, cartella_progetto):
+    nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
+    st.markdown(f"### {nome_visualizzato}")
+    pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
 
 
 @st.dialog("💸 Aggiungi maggiorazione")
@@ -455,7 +429,7 @@ else:
                 nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
 
                 with st.container(border=True):
-                    col_info, col_azioni = st.columns([3, 1.4])
+                    col_info, col_azioni = st.columns([3, 2.2])
                     with col_info:
                         badge_riga = ""
                         if inf.get('foto_url'):
@@ -472,11 +446,14 @@ else:
                             unsafe_allow_html=True
                         )
                     with col_azioni:
-                        b1, b2 = st.columns(2)
+                        b1, b2, b3 = st.columns(3)
                         with b1:
                             if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
                                 dialog_dettagli_infisso(inf, cartella_progetto)
                         with b2:
+                            if st.button("🖌️", key=f"schiz_{inf['id']}", use_container_width=True, help="Schizzo"):
+                                dialog_schizzo_infisso(inf, cartella_progetto)
+                        with b3:
                             if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
                                 esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
                                 numero_nuovo = len(esistenti.data) + 1
