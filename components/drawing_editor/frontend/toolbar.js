@@ -29,8 +29,6 @@ const ToolbarUI = (function () {
         btn.classList.add("active");
         DrawingEditor.setColor(btn.getAttribute("data-color"));
 
-        // Ri-applica lo strumento attualmente attivo, così resta subito utilizzabile
-        // senza bisogno di ricliccarlo dopo aver cambiato colore.
         const toolAttivoBtn = document.querySelector(".tool-btn.active");
         if (toolAttivoBtn) {
           DrawingEditor.setTool(toolAttivoBtn.getAttribute("data-tool"));
@@ -40,17 +38,19 @@ const ToolbarUI = (function () {
 
     document.getElementById("btn-undo").addEventListener("click", function () { DrawingEditor.undo(); });
     document.getElementById("btn-redo").addEventListener("click", function () { DrawingEditor.redo(); });
+    document.getElementById("btn-delete").addEventListener("click", function () { DrawingEditor.eliminaOggettoSelezionato(); });
+
+    document.getElementById("btn-zoom-in").addEventListener("click", function () { DrawingEditor.zoomIn(); });
+    document.getElementById("btn-zoom-out").addEventListener("click", function () { DrawingEditor.zoomOut(); });
+    document.getElementById("zoom-label").addEventListener("click", function () {
+      if (window.AppLayout) window.AppLayout.rifitta();
+    });
   }
 
   function setActiveTool(tool) {
     document.querySelectorAll(".tool-btn[data-tool]").forEach(function (btn) {
       btn.classList.toggle("active", btn.getAttribute("data-tool") === tool);
     });
-    const labels = {
-      select: "Seleziona", pen: "Penna", eraser: "Gomma",
-      line: "Linea", rect: "Rettangolo", circle: "Cerchio", photo: "Foto",
-    };
-    document.getElementById("status-tool").textContent = labels[tool] || tool;
   }
 
   return { init, setActiveTool };
