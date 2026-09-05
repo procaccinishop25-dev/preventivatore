@@ -2,36 +2,7 @@ import streamlit as st
 from services.supabase import supabase
 from services.theme import apply_custom_theme, badge
 from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
-from streamlit_drawable_canvas import st_canvas
-from PIL import Image
-import io
 import re
-
-
-ICONE_STRUMENTI = {
-    "✏️": "Penna",
-    "🧽": "Gomma",
-    "➖": "Linea dritta",
-    "▭": "Rettangolo",
-    "⚪": "Cerchio",
-}
-
-ICONE_COLORI = {
-    "⚫": "#000000",
-    "🔴": "#DC2626",
-    "🔵": "#2563EB",
-    "🟢": "#16A34A",
-    "🟡": "#F59E0B",
-    "🟣": "#7C3AED",
-}
-
-MAPPA_MODALITA = {
-    "Penna": "freedraw",
-    "Gomma": "freedraw",
-    "Linea dritta": "line",
-    "Rettangolo": "rect",
-    "Cerchio": "circle",
-}
 
 
 def slug(testo):
@@ -46,79 +17,6 @@ def carica_foto_bytes(bytes_data, tipo, nome_file_originale, cartella, nome_infi
     )
     url_pubblico = supabase.storage.from_("foto").get_public_url(percorso)
     supabase.table("infissi").update({"foto_url": url_pubblico}).eq("id", infisso_id).execute()
-
-
-def salva_schizzo(image_data, cartella, nome_file, tabella, record_id):
-    img = Image.fromarray(image_data.astype("uint8"), "RGBA")
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    percorso = f"{cartella}/{slug(nome_file)}.png"
-    supabase.storage.from_("schizzi").upload(
-        percorso, buffer.getvalue(), {"content-type": "image/png", "upsert": "true"}
-    )
-    url_pubblico = supabase.storage.from_("schizzi").get_public_url(percorso)
-    supabase.table(tabella).update({"schizzo_url": url_pubblico}).eq("id", record_id).execute()
-
-
-def selettori_strumento_colore(key_prefix):
-    """Radio a icone per strumento e colore — nessun rerun manuale, quindi non chiude mai la finestrella."""
-    icona_strumento = st.radio(
-        "Strumento",
-        list(ICONE_STRUMENTI.keys()),
-        horizontal=True,
-        key=f"strumento_{key_prefix}",
-        format_func=lambda x: x
-    )
-    strumento = ICONE_STRUMENTI[icona_strumento]
-
-    if strumento != "Gomma":
-        icona_colore = st.radio(
-            "Colore",
-            list(ICONE_COLORI.keys()),
-            horizontal=True,
-            key=f"colore_{key_prefix}"
-        )
-        colore = ICONE_COLORI[icona_colore]
-    else:
-        colore = "#FFFFFF"
-
-    return strumento, colore
-
-
-def pannello_schizzo(key_prefix, cartella, nome_file, tabella, record_id, url_esistente):
-    if isinstance(url_esistente, str) and url_esistente.startswith("http"):
-        st.image(url_esistente, width=220, caption="Schizzo attuale")
-
-    strumento, colore = selettori_strumento_colore(key_prefix)
-    modalita = MAPPA_MODALITA[strumento]
-
-    if strumento in ("Rettangolo", "Cerchio", "Linea dritta"):
-        spessore = st.slider("Spessore", 1, 15, 3, key=f"spessore_{strumento}_{key_prefix}")
-    elif strumento == "Gomma":
-        spessore = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_{strumento}_{key_prefix}")
-    else:
-        spessore = st.slider("Spessore tratto", 1, 15, 3, key=f"spessore_{strumento}_{key_prefix}")
-
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
-        stroke_width=spessore,
-        stroke_color=colore,
-        background_color="#FFFFFF",
-        height=520,
-        width=720,
-        drawing_mode=modalita,
-        display_toolbar=True,
-        key=f"canvas_{key_prefix}"
-    )
-
-    if st.button("💾 Salva schizzo", key=f"salva_schizzo_{key_prefix}", use_container_width=True, type="primary"):
-        if canvas_result.image_data is not None:
-            salva_schizzo(canvas_result.image_data, cartella, nome_file, tabella, record_id)
-            st.success("Schizzo salvato!")
-            st.rerun()
-        else:
-            st.warning("Disegna qualcosa prima di salvare.")
 
 
 @st.dialog("➕ Aggiungi infisso", width="large")
@@ -232,32 +130,6 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                         st.session_state["foto_catturate"] = []
                         st.rerun()
 
-    st.divider()
-    st.caption("✏️ Schizzo (opzionale) — con più pezzi, viene salvato solo sul primo")
-    mostra_schizzo_creazione = st.checkbox("Aggiungi anche uno schizzo", key=f"mostra_schizzo_new_{contatore}")
-
-    canvas_schizzo_result = None
-    if mostra_schizzo_creazione:
-        strumento_s, colore_s = selettori_strumento_colore(f"new_{contatore}")
-        modalita_s = MAPPA_MODALITA[strumento_s]
-
-        if strumento_s == "Gomma":
-            spessore_s = st.slider("Spessore gomma", 5, 60, 25, key=f"spessore_{strumento_s}_new_{contatore}")
-        else:
-            spessore_s = st.slider("Spessore", 1, 15, 3, key=f"spessore_{strumento_s}_new_{contatore}")
-
-        canvas_schizzo_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=spessore_s,
-            stroke_color=colore_s,
-            background_color="#FFFFFF",
-            height=480,
-            width=680,
-            drawing_mode=modalita_s,
-            display_toolbar=True,
-            key=f"canvas_new_{contatore}"
-        )
-
     st.write("")
     if st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}"):
         if not tipologia:
@@ -294,17 +166,11 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
                     foto = lista_foto[idx]
                     carica_foto_bytes(foto["bytes"], foto["type"], foto["name"], cartella_progetto, nome_infisso, infisso_id)
 
-            if mostra_schizzo_creazione and canvas_schizzo_result is not None and canvas_schizzo_result.image_data is not None and id_infissi_creati:
-                primo_id, primo_nome = id_infissi_creati[0]
-                salva_schizzo(canvas_schizzo_result.image_data, cartella_progetto, primo_nome, "infissi", primo_id)
-                if int(quantita) > 1:
-                    st.info(f"Schizzo associato solo a **{primo_nome}**. Per gli altri, usa Modifica.")
-
             st.session_state["foto_key_counter"] += 1
             st.session_state["foto_catturate"] = []
             st.session_state["fotocamera_aperta"] = True
 
-            st.success(f"{int(quantita)} infisso/i aggiunto/i!")
+            st.success(f"{int(quantita)} infisso/i aggiunto/i! Aggiungi lo schizzo dopo, da \"Modifica\".")
             st.rerun()
 
 
@@ -366,7 +232,21 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
 
     st.divider()
     st.markdown("#### ✏️ Schizzo")
-    pannello_schizzo(f"infisso_{inf['id']}", cartella_progetto, nome_visualizzato, "infissi", inf['id'], inf.get('schizzo_url'))
+
+    if inf.get('schizzo_url'):
+        st.image(inf['schizzo_url'], width=220, caption="Schizzo attuale")
+    else:
+        st.caption("Nessuno schizzo ancora.")
+
+    if st.button("🖌️ Apri editor schizzo a schermo intero", key=f"apri_editor_{inf['id']}", use_container_width=True, type="primary"):
+        st.session_state["editor_schizzo_target"] = {
+            "tabella": "infissi",
+            "record_id": inf['id'],
+            "cartella": cartella_progetto,
+            "nome_file": nome_visualizzato,
+            "url_esistente": inf.get('schizzo_url'),
+        }
+        st.switch_page("pages/8_Editor_Schizzo.py")
 
 
 @st.dialog("💸 Aggiungi maggiorazione")
