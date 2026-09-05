@@ -23,6 +23,10 @@ const ToolbarUI = (function () {
       e.target.value = "";
     });
 
+    document.getElementById("color-picker").addEventListener("input", function (e) {
+      DrawingEditor.setColor(e.target.value);
+    });
+
     document.getElementById("btn-undo").addEventListener("click", function () { DrawingEditor.undo(); });
     document.getElementById("btn-redo").addEventListener("click", function () { DrawingEditor.redo(); });
   }
