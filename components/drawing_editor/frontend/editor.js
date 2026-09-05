@@ -1,5 +1,12 @@
 const DrawingEditor = (function () {
+  const DOCUMENT_WIDTH = 1400;
+  const DOCUMENT_HEIGHT = 900;
+  const ZOOM_MIN = 0.2;
+  const ZOOM_MAX = 5;
+  const ZOOM_STEP = 0.15;
+
   let canvas = null;
+  let wrapperEl = null;
   let currentTool = "select";
   let currentColor = "#000000";
   let historyStack = [];
@@ -10,10 +17,17 @@ const DrawingEditor = (function () {
   let shapeOrigin = null;
   let activeShape = null;
 
-  function init(canvasId, width, height) {
-    canvas = new fabric.Canvas(canvasId, { selection: true, backgroundColor: "#ffffff" });
-    canvas.setWidth(width);
-    canvas.setHeight(height);
+  let pinchState = null;
+  let statoPreImdiscocinta = null; // stato drawingMode/selection salvato prima del pinch
+
+  function init(canvasId, wrapperId) {
+    wrapperEl = document.getElementById(wrapperId);
+
+    canvas = new fabric.Canvas(canvasId, {
+      selection: true,
+      backgroundColor: "#ffffff",
+      preserveObjectStacking: true,
+    });
 
     canvas.on("object:added", pushHistoryIfNeeded);
     canvas.on("object:modified", pushHistoryIfNeeded);
@@ -24,16 +38,146 @@ const DrawingEditor = (function () {
     canvas.on("mouse:move", handleMouseMove);
     canvas.on("mouse:up", handleMouseUp);
 
+    attachPinchHandlers();
+
     pushHistory();
     return canvas;
   }
 
-  function resize(width, height) {
-    if (!canvas) return;
-    canvas.setWidth(width);
-    canvas.setHeight(height);
-    canvas.renderAll();
+  // ================== VIEWPORT: documento fisso, finestra variabile ==================
+
+  function fitToScreen(viewportWidth, viewportHeight) {
+    canvas.setWidth(viewportWidth);
+    canvas.setHeight(viewportHeight);
+
+    const zoom = Math.min(
+      viewportWidth / DOCUMENT_WIDTH,
+      viewportHeight / DOCUMENT_HEIGHT
+    );
+    applyZoomCentrato(zoom);
   }
+
+  function applyZoomCentrato(zoom) {
+    zoom = Math.max(ZOOM_MIN, Math.min(zoom, ZOOM_MAX));
+    const panX = (canvas.getWidth() - DOCUMENT_WIDTH * zoom) / 2;
+    const panY = (canvas.getHeight() - DOCUMENT_HEIGHT * zoom) / 2;
+    canvas.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+    canvas.renderAll();
+    aggiornaEtichettaZoom();
+  }
+
+  function onResize(viewportWidth, viewportHeight) {
+    fitToScreen(viewportWidth, viewportHeight);
+  }
+
+  function zoomIn() {
+    applyZoomCentratoIncrementale(ZOOM_STEP);
+  }
+
+  function zoomOut() {
+    applyZoomCentratoIncrementale(-ZOOM_STEP);
+  }
+
+  function applyZoomCentratoIncrementale(delta) {
+    const zoomAttuale = canvas.getZoom();
+    const nuovoZoom = Math.max(ZOOM_MIN, Math.min(zoomAttuale + delta, ZOOM_MAX));
+    const centro = new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+    canvas.zoomToPoint(centro, nuovoZoom);
+    canvas.renderAll();
+    aggiornaEtichettaZoom();
+  }
+
+  function resetFit(viewportWidth, viewportHeight) {
+    fitToScreen(viewportWidth, viewportHeight);
+  }
+
+  function aggiornaEtichettaZoom() {
+    const label = document.getElementById("zoom-label");
+    if (label) label.textContent = Math.round(canvas.getZoom() * 100) + "%";
+  }
+
+  // ================== PINCH-ZOOM E PAN A DUE DITA ==================
+
+  function distanzaTraDitaTouches(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function puntoMedioTouches(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+  }
+
+  function attachPinchHandlers() {
+    wrapperEl.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        statoPreImdiscocinta = {
+          isDrawingMode: canvas.isDrawingMode,
+          selection: canvas.selection,
+        };
+        canvas.isDrawingMode = false;
+        canvas.selection = false;
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+
+        const rect = canvas.upperCanvasEl.getBoundingClientRect();
+        pinchState = {
+          initialDistance: distanzaTraDitaTouches(e.touches),
+          initialZoom: canvas.getZoom(),
+          initialMidpoint: puntoMedioTouches(e.touches),
+          canvasRect: rect,
+        };
+      }
+    }, { capture: true, passive: false });
+
+    wrapperEl.addEventListener("touchmove", function (e) {
+      if (e.touches.length === 2 && pinchState) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const nuovaDistanza = distanzaTraDitaTouches(e.touches);
+        const scala = nuovaDistanza / pinchState.initialDistance;
+        let nuovoZoom = pinchState.initialZoom * scala;
+        nuovoZoom = Math.max(ZOOM_MIN, Math.min(nuovoZoom, ZOOM_MAX));
+
+        const midpoint = puntoMedioTouches(e.touches);
+        const puntoZoom = new fabric.Point(
+          midpoint.x - pinchState.canvasRect.left,
+          midpoint.y - pinchState.canvasRect.top
+        );
+        canvas.zoomToPoint(puntoZoom, nuovoZoom);
+
+        const dx = midpoint.x - pinchState.initialMidpoint.x;
+        const dy = midpoint.y - pinchState.initialMidpoint.y;
+        canvas.relativePan(new fabric.Point(dx, dy));
+
+        pinchState.initialMidpoint = midpoint;
+        canvas.renderAll();
+        aggiornaEtichettaZoom();
+      }
+    }, { capture: true, passive: false });
+
+    function terminaPinch(e) {
+      if (e.touches.length < 2 && pinchState) {
+        pinchState = null;
+        if (statoPreImdiscocinta) {
+          canvas.isDrawingMode = statoPreImdiscocinta.isDrawingMode;
+          canvas.selection = statoPreImdiscocinta.selection;
+          statoPreImdiscocinta = null;
+        }
+      }
+    }
+    wrapperEl.addEventListener("touchend", terminaPinch, { capture: true, passive: false });
+    wrapperEl.addEventListener("touchcancel", terminaPinch, { capture: true, passive: false });
+  }
+
+  // ================== STORICO (UNDO/REDO) ==================
 
   function pushHistoryIfNeeded() {
     if (isRestoring) return;
@@ -77,9 +221,11 @@ const DrawingEditor = (function () {
     });
   }
 
+  // ================== OGGETTI: FOTO ==================
+
   function loadImageAsObject(url) {
     fabric.Image.fromURL(url, function (img) {
-      const maxDim = Math.min(canvas.getWidth(), canvas.getHeight()) * 0.7;
+      const maxDim = Math.min(DOCUMENT_WIDTH, DOCUMENT_HEIGHT) * 0.6;
       if (img.width > maxDim || img.height > maxDim) {
         const scale = maxDim / Math.max(img.width, img.height);
         img.scale(scale);
@@ -92,17 +238,19 @@ const DrawingEditor = (function () {
 
   function addPhotoFromDataUrl(dataUrl) {
     fabric.Image.fromURL(dataUrl, function (img) {
-      const maxDim = Math.min(canvas.getWidth(), canvas.getHeight()) * 0.6;
+      const maxDim = Math.min(DOCUMENT_WIDTH, DOCUMENT_HEIGHT) * 0.5;
       if (img.width > maxDim || img.height > maxDim) {
         const scale = maxDim / Math.max(img.width, img.height);
         img.scale(scale);
       }
-      img.set({ left: 60, top: 60 });
+      img.set({ left: DOCUMENT_WIDTH / 2 - (img.width * (img.scaleX || 1)) / 2, top: DOCUMENT_HEIGHT / 2 - (img.height * (img.scaleY || 1)) / 2 });
       canvas.add(img);
       canvas.setActiveObject(img);
       canvas.renderAll();
     });
   }
+
+  // ================== STRUMENTI ==================
 
   function setColor(color) {
     currentColor = color;
@@ -136,6 +284,15 @@ const DrawingEditor = (function () {
     const target = canvas.findTarget(e, false);
     if (target) {
       canvas.remove(target);
+      canvas.requestRenderAll();
+    }
+  }
+
+  function eliminaOggettoSelezionato() {
+    const attivo = canvas.getActiveObject();
+    if (attivo) {
+      canvas.remove(attivo);
+      canvas.discardActiveObject();
       canvas.requestRenderAll();
     }
   }
@@ -220,13 +377,37 @@ const DrawingEditor = (function () {
     if (window.ToolbarUI) window.ToolbarUI.setActiveTool("select");
   }
 
+  // ================== ESPORTAZIONE ==================
+
   function exportPNG() {
-    return canvas.toDataURL({ format: "png", quality: 1 });
+    const viewportSalvato = canvas.viewportTransform.slice();
+    const larghezzaSalvata = canvas.getWidth();
+    const altezzaSalvata = canvas.getHeight();
+
+    canvas.setWidth(DOCUMENT_WIDTH);
+    canvas.setHeight(DOCUMENT_HEIGHT);
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.renderAll();
+
+    const dataUrl = canvas.toDataURL({ format: "png", quality: 1 });
+
+    canvas.setWidth(larghezzaSalvata);
+    canvas.setHeight(altezzaSalvata);
+    canvas.setViewportTransform(viewportSalvato);
+    canvas.renderAll();
+
+    return dataUrl;
   }
 
   function exportState() {
     return canvas.toJSON();
   }
 
-  return { init, resize, loadState, loadImageAsObject, addPhotoFromDataUrl, setTool, setColor, undo, redo, exportPNG, exportState };
+  return {
+    init, onResize, fitToScreen, zoomIn, zoomOut, resetFit,
+    loadState, loadImageAsObject, addPhotoFromDataUrl,
+    setTool, setColor, undo, redo, eliminaOggettoSelezionato,
+    exportPNG, exportState,
+    DOCUMENT_WIDTH, DOCUMENT_HEIGHT,
+  };
 })();
