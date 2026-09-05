@@ -1,32 +1,30 @@
 (function () {
   let initialized = false;
 
-  function calcolaDimensioniCanvas() {
-    const wrapper = document.getElementById("canvas-wrapper");
-    const paddingOrizzontale = 32; // 16px per lato, da CSS
-    const larghezzaDisponibile = wrapper.clientWidth - paddingOrizzontale;
-    const larghezza = Math.max(280, Math.min(larghezzaDisponibile, 1200));
+  function impostaAltezzaViewport() {
+    const altezza = window.innerHeight;
+    window.Streamlit.setFrameHeight(altezza);
+    return altezza;
+  }
 
-    let altezza;
-    if (larghezza < 600) {
-      altezza = Math.min(Math.round(larghezza * 1.1), 550);
-    } else {
-      altezza = 700;
+  function misuraSpazioDisponibileECreaCanvas(inizializzaAncora) {
+    const wrapper = document.getElementById("canvas-wrapper");
+    const larghezza = Math.max(280, wrapper.clientWidth - 24);
+    const altezza = Math.max(300, wrapper.clientHeight - 24);
+
+    if (inizializzaAncora) {
+      DrawingEditor.resize(larghezza, altezza);
     }
     return { larghezza, altezza };
   }
 
-  function adattaAltezzaFinestra() {
-    requestAnimationFrame(function () {
-      const altezzaReale = document.getElementById("app").scrollHeight;
-      window.Streamlit.setFrameHeight(altezzaReale);
-    });
-  }
-
   function gestisciRidimensionamento() {
-    const { larghezza, altezza } = calcolaDimensioniCanvas();
-    DrawingEditor.resize(larghezza, altezza);
-    adattaAltezzaFinestra();
+    impostaAltezzaViewport();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        misuraSpazioDisponibileECreaCanvas(true);
+      });
+    });
   }
 
   function handleRender(event) {
@@ -36,23 +34,33 @@
       initialized = true;
       document.getElementById("editor-title").textContent = args.title || "Schizzo";
 
-      const { larghezza, altezza } = calcolaDimensioniCanvas();
+      impostaAltezzaViewport();
 
-      DrawingEditor.init("fabric-canvas", larghezza, altezza);
-      ToolbarUI.init();
+      // Aspetta due frame di rendering: il primo per far sì che Streamlit
+      // ridimensioni davvero l'iframe, il secondo per misurare lo spazio reale ottenuto.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          const { larghezza, altezza } = misuraSpazioDisponibileECreaCanvas(false);
 
-      if (args.initial_state) {
-        DrawingEditor.loadState(args.initial_state);
-      } else if (args.background_image_url) {
-        DrawingEditor.loadImageAsObject(args.background_image_url);
-      }
+          DrawingEditor.init("fabric-canvas", larghezza, altezza);
+          ToolbarUI.init();
 
-      adattaAltezzaFinestra();
+          if (args.initial_state) {
+            DrawingEditor.loadState(args.initial_state);
+          } else if (args.background_image_url) {
+            DrawingEditor.loadImageAsObject(args.background_image_url);
+          }
+        });
+      });
 
       let timerRidimensionamento = null;
       window.addEventListener("resize", function () {
         clearTimeout(timerRidimensionamento);
         timerRidimensionamento = setTimeout(gestisciRidimensionamento, 200);
+      });
+      window.addEventListener("orientationchange", function () {
+        clearTimeout(timerRidimensionamento);
+        timerRidimensionamento = setTimeout(gestisciRidimensionamento, 300);
       });
     }
   }
