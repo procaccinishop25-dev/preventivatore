@@ -1,29 +1,32 @@
 (function () {
   let initialized = false;
 
-  function calcolaAltezzaTarget() {
-    const altezzaSchermo = window.screen.availHeight || window.screen.height || 800;
-    let altezza = Math.round(altezzaSchermo * 0.85);
-    altezza = Math.max(500, Math.min(altezza, 900));
-    return altezza;
-  }
-
-  function misuraCanvasDaWrapper() {
+  function calcolaDimensioniCanvas() {
     const wrapper = document.getElementById("canvas-wrapper");
-    const larghezza = Math.max(280, wrapper.clientWidth - 24);
-    const altezza = Math.max(300, wrapper.clientHeight - 24);
+    const paddingOrizzontale = 32; // 16px per lato, da CSS
+    const larghezzaDisponibile = wrapper.clientWidth - paddingOrizzontale;
+    const larghezza = Math.max(280, Math.min(larghezzaDisponibile, 1200));
+
+    let altezza;
+    if (larghezza < 600) {
+      altezza = Math.min(Math.round(larghezza * 1.1), 550);
+    } else {
+      altezza = 700;
+    }
     return { larghezza, altezza };
   }
 
-  function gestisciRidimensionamento() {
-    const altezzaTarget = calcolaAltezzaTarget();
-    window.Streamlit.setFrameHeight(altezzaTarget);
+  function adattaAltezzaFinestra() {
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        const { larghezza, altezza } = misuraCanvasDaWrapper();
-        DrawingEditor.resize(larghezza, altezza);
-      });
+      const altezzaReale = document.getElementById("app").scrollHeight;
+      window.Streamlit.setFrameHeight(altezzaReale);
     });
+  }
+
+  function gestisciRidimensionamento() {
+    const { larghezza, altezza } = calcolaDimensioniCanvas();
+    DrawingEditor.resize(larghezza, altezza);
+    adattaAltezzaFinestra();
   }
 
   function handleRender(event) {
@@ -33,32 +36,23 @@
       initialized = true;
       document.getElementById("editor-title").textContent = args.title || "Schizzo";
 
-      const altezzaTarget = calcolaAltezzaTarget();
-      window.Streamlit.setFrameHeight(altezzaTarget);
+      const { larghezza, altezza } = calcolaDimensioniCanvas();
 
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          const { larghezza, altezza } = misuraCanvasDaWrapper();
+      DrawingEditor.init("fabric-canvas", larghezza, altezza);
+      ToolbarUI.init();
 
-          DrawingEditor.init("fabric-canvas", larghezza, altezza);
-          ToolbarUI.init();
+      if (args.initial_state) {
+        DrawingEditor.loadState(args.initial_state);
+      } else if (args.background_image_url) {
+        DrawingEditor.loadImageAsObject(args.background_image_url);
+      }
 
-          if (args.initial_state) {
-            DrawingEditor.loadState(args.initial_state);
-          } else if (args.background_image_url) {
-            DrawingEditor.loadImageAsObject(args.background_image_url);
-          }
-        });
-      });
+      adattaAltezzaFinestra();
 
       let timerRidimensionamento = null;
       window.addEventListener("resize", function () {
         clearTimeout(timerRidimensionamento);
         timerRidimensionamento = setTimeout(gestisciRidimensionamento, 200);
-      });
-      window.addEventListener("orientationchange", function () {
-        clearTimeout(timerRidimensionamento);
-        timerRidimensionamento = setTimeout(gestisciRidimensionamento, 300);
       });
     }
   }
