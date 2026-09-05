@@ -29,6 +29,33 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
         st.session_state["camera_shot_counter"] = 0
     if "fotocamera_aperta" not in st.session_state:
         st.session_state["fotocamera_aperta"] = True
+    if "infisso_appena_creato" not in st.session_state:
+        st.session_state["infisso_appena_creato"] = None
+
+    # --- Se abbiamo appena creato un infisso, mostra la scelta invece del form ---
+    if st.session_state["infisso_appena_creato"] is not None:
+        creato = st.session_state["infisso_appena_creato"]
+        st.success(f"{creato['quantita']} infisso/i aggiunto/i!")
+        if creato['quantita'] > 1:
+            st.caption(f"Lo schizzo, se lo aggiungi ora, verrà associato solo al primo: **{creato['primo_nome']}**.")
+
+        col_schizzo, col_chiudi = st.columns(2)
+        with col_schizzo:
+            if st.button("✏️ Aggiungi schizzo ora", type="primary", use_container_width=True):
+                st.session_state["editor_schizzo_target"] = {
+                    "tabella": "infissi",
+                    "record_id": creato['primo_id'],
+                    "cartella": cartella_progetto,
+                    "nome_file": creato['primo_nome'],
+                    "url_esistente": None,
+                }
+                st.session_state["infisso_appena_creato"] = None
+                st.switch_page("pages/8_Editor_Schizzo.py")
+        with col_chiudi:
+            if st.button("Chiudi", use_container_width=True):
+                st.session_state["infisso_appena_creato"] = None
+                st.rerun()
+        return
 
     contatore = st.session_state["foto_key_counter"]
 
@@ -170,7 +197,12 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
             st.session_state["foto_catturate"] = []
             st.session_state["fotocamera_aperta"] = True
 
-            st.success(f"{int(quantita)} infisso/i aggiunto/i! Aggiungi lo schizzo dopo, da \"Modifica\".")
+            primo_id, primo_nome = id_infissi_creati[0]
+            st.session_state["infisso_appena_creato"] = {
+                "primo_id": primo_id,
+                "primo_nome": primo_nome,
+                "quantita": int(quantita),
+            }
             st.rerun()
 
 
