@@ -67,8 +67,6 @@ else:
         title=target['nome_file'],
         background_image_url=target.get('url_esistente') if not stato_iniziale else None,
         initial_state=stato_iniziale,
-        width=1100,
-        height=700,
         key=f"drawing_editor_{target['record_id']}"
     )
 
