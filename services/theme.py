@@ -175,6 +175,22 @@ def apply_custom_theme():
         flex-shrink: 0;
     }
 
+    /* --- CTA primaria in sidebar: "Nuovo progetto" sempre evidenziato --- */
+    .sidebar-cta-primary { margin: var(--space-1) var(--space-2) var(--space-2) var(--space-2); }
+    .sidebar-cta-primary [data-testid="stPageLink"] {
+        background-color: var(--color-primary-light) !important;
+        border-radius: var(--radius-md) !important;
+        margin: 0 !important;
+        padding: 6px var(--space-2) !important;
+    }
+    .sidebar-cta-primary [data-testid="stPageLink"] p {
+        color: var(--color-primary) !important;
+        font-weight: 600 !important;
+    }
+    .sidebar-cta-primary [data-testid="stPageLink"]:hover {
+        background-color: #FDE3E0 !important;
+    }
+
     /* ============== BOTTONI — 3 livelli, compatti (36px) ============== */
     .stApp button {
         border-radius: var(--radius-md) !important;
