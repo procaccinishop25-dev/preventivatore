@@ -1,10 +1,12 @@
 const DrawingEditor = (function () {
   let canvas = null;
   let currentTool = "select";
+  let currentColor = "#000000";
   let historyStack = [];
   let historyIndex = -1;
   let isRestoring = false;
   let isDrawingShape = false;
+  let isErasingActive = false;
   let shapeOrigin = null;
   let activeShape = null;
 
@@ -95,6 +97,13 @@ const DrawingEditor = (function () {
     });
   }
 
+  function setColor(color) {
+    currentColor = color;
+    if (currentTool === "pen" && canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.color = currentColor;
+    }
+  }
+
   function setTool(tool) {
     currentTool = tool;
     canvas.isDrawingMode = false;
@@ -105,17 +114,25 @@ const DrawingEditor = (function () {
       canvas.isDrawingMode = true;
       canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
       canvas.freeDrawingBrush.width = 3;
-      canvas.freeDrawingBrush.color = "#000000";
+      canvas.freeDrawingBrush.color = currentColor;
     } else if (tool === "eraser") {
       canvas.selection = false;
       canvas.forEachObject(function (obj) { obj.selectable = false; });
     }
   }
 
+  function eliminaOggettoSottoPuntatore(e) {
+    const target = canvas.findTarget(e, false);
+    if (target) {
+      canvas.remove(target);
+      canvas.requestRenderAll();
+    }
+  }
+
   function handleMouseDown(opt) {
     if (currentTool === "eraser") {
-      const target = canvas.findTarget(opt.e, false);
-      if (target) canvas.remove(target);
+      isErasingActive = true;
+      eliminaOggettoSottoPuntatore(opt.e);
       return;
     }
     if (["line", "rect", "circle"].indexOf(currentTool) === -1) return;
@@ -126,23 +143,28 @@ const DrawingEditor = (function () {
 
     if (currentTool === "line") {
       activeShape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-        stroke: "#000000", strokeWidth: 3, selectable: false,
+        stroke: currentColor, strokeWidth: 3, selectable: false,
       });
     } else if (currentTool === "rect") {
       activeShape = new fabric.Rect({
         left: pointer.x, top: pointer.y, width: 1, height: 1,
-        fill: "transparent", stroke: "#000000", strokeWidth: 3, selectable: false,
+        fill: "transparent", stroke: currentColor, strokeWidth: 3, selectable: false,
       });
     } else if (currentTool === "circle") {
       activeShape = new fabric.Circle({
         left: pointer.x, top: pointer.y, radius: 1,
-        fill: "transparent", stroke: "#000000", strokeWidth: 3, selectable: false,
+        fill: "transparent", stroke: currentColor, strokeWidth: 3, selectable: false,
       });
     }
     canvas.add(activeShape);
   }
 
   function handleMouseMove(opt) {
+    if (currentTool === "eraser" && isErasingActive) {
+      eliminaOggettoSottoPuntatore(opt.e);
+      return;
+    }
+
     if (!isDrawingShape || !activeShape) return;
     const pointer = canvas.getPointer(opt.e);
 
@@ -169,6 +191,12 @@ const DrawingEditor = (function () {
   }
 
   function handleMouseUp() {
+    if (currentTool === "eraser") {
+      isErasingActive = false;
+      pushHistory();
+      return;
+    }
+
     if (!isDrawingShape) return;
     isDrawingShape = false;
     if (activeShape) {
@@ -189,5 +217,5 @@ const DrawingEditor = (function () {
     return canvas.toJSON();
   }
 
-  return { init, loadState, loadImageAsObject, addPhotoFromDataUrl, setTool, undo, redo, exportPNG, exportState };
+  return { init, loadState, loadImageAsObject, addPhotoFromDataUrl, setTool, setColor, undo, redo, exportPNG, exportState };
 })();
