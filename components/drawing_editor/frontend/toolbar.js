@@ -23,8 +23,12 @@ const ToolbarUI = (function () {
       e.target.value = "";
     });
 
-    document.getElementById("color-picker").addEventListener("input", function (e) {
-      DrawingEditor.setColor(e.target.value);
+    document.querySelectorAll(".color-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        document.querySelectorAll(".color-btn").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        DrawingEditor.setColor(btn.getAttribute("data-color"));
+      });
     });
 
     document.getElementById("btn-undo").addEventListener("click", function () { DrawingEditor.undo(); });
