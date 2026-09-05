@@ -1,6 +1,5 @@
 streamlit
 supabase
-streamlit-drawable-canvas-fix
 Pillow
 pandas
 openpyxl
