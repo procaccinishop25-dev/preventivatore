@@ -1,13 +1,13 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme
+from services.theme import apply_custom_theme, material_icon
 from datetime import date
 
 st.set_page_config(page_title="Nuovo Progetto", page_icon="📋")
 apply_custom_theme()
 
 st.markdown(
-    "<div class='page-header'><h1>📋 Nuovo Progetto</h1>"
+    f"<div class='page-header'><h1>{material_icon('note_add')} Nuovo Progetto</h1>"
     "<p>Registra un nuovo sopralluogo: cliente, cantiere e dettagli del lavoro.</p></div>",
     unsafe_allow_html=True
 )
@@ -15,7 +15,7 @@ st.markdown(
 with st.form("nuovo_progetto", clear_on_submit=True):
 
     with st.container(border=True):
-        st.markdown("#### 👤 Dati Cliente")
+        st.markdown("#### :material/person: Dati Cliente")
         col1, col2 = st.columns(2)
         with col1:
             nome = st.text_input("Nome")
@@ -28,13 +28,13 @@ with st.form("nuovo_progetto", clear_on_submit=True):
             email = st.text_input("Email")
 
     with st.container(border=True):
-        st.markdown("#### 📍 Dati Cantiere")
+        st.markdown("#### :material/location_on: Dati Cantiere")
         indirizzo = st.text_input("Indirizzo")
         citta = st.text_input("Città")
         note = st.text_area("Note cantiere", height=80)
 
     with st.container(border=True):
-        st.markdown("#### 🗓️ Sopralluogo")
+        st.markdown("#### :material/event: Sopralluogo")
         col5, col6 = st.columns(2)
         with col5:
             data_sopralluogo = st.date_input("Data", value=date.today())
@@ -43,7 +43,8 @@ with st.form("nuovo_progetto", clear_on_submit=True):
         note_generali = st.text_area("Note generali", height=80)
 
     submitted = st.form_submit_button(
-        "Salva Progetto e continua con gli infissi →",
+        "Salva Progetto e continua con gli infissi",
+        icon=":material/arrow_forward:",
         use_container_width=True,
         type="primary"
     )
