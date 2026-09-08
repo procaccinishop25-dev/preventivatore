@@ -58,7 +58,7 @@ def crea_infissi_e_foto(progetto_id, cartella_progetto, tipologia, quantita, lar
     return id_infissi_creati
 
 
-@st.dialog("➕ Aggiungi infisso", width="large")
+@st.dialog(":material/add: Aggiungi infisso", width="large")
 def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
     if "foto_key_counter" not in st.session_state:
         st.session_state["foto_key_counter"] = 0
@@ -99,7 +99,7 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
         st.markdown(
             f"<div style='background-color:var(--color-primary-light); border-radius:8px; padding:0.5rem 0.8rem; "
             f"margin:0.3rem 0 0.6rem 0; font-size:0.85rem; color:var(--color-text);'>"
-            f"💶 <strong>{prezzo_str}</strong>"
+            f"<strong>{prezzo_str}</strong>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -120,7 +120,7 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
 
     note_inf = st.text_area("Note (opzionale)", height=70, key=f"note_new_{contatore}")
 
-    st.caption("📷 Foto (opzionale) — con più pezzi, assegnate in ordine")
+    st.caption("Foto (opzionale) — con più pezzi, assegnate in ordine")
     metodo_foto = st.radio(
         "Come aggiungere la foto?", ["Nessuna", "Carica da file", "Scatta foto"],
         horizontal=True, key=f"metodo_foto_nuovo_{contatore}"
@@ -134,7 +134,7 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
         ) or []
 
     elif metodo_foto == "Scatta foto":
-        st.caption(f"📸 Scattate finora: **{len(st.session_state['foto_catturate'])}**")
+        st.caption(f"Scattate finora: **{len(st.session_state['foto_catturate'])}**")
         if st.session_state["foto_catturate"]:
             cols_preview = st.columns(min(len(st.session_state["foto_catturate"]), 6))
             for idx, foto in enumerate(st.session_state["foto_catturate"]):
@@ -146,35 +146,35 @@ def dialog_aggiungi_infisso(progetto_id, cartella_progetto):
             col_agg, col_chiudi = st.columns(2)
             with col_agg:
                 if scatto is not None:
-                    if st.button("➕ Aggiungi alla lista", use_container_width=True):
+                    if st.button("Aggiungi alla lista", icon=":material/add:", use_container_width=True):
                         st.session_state["foto_catturate"].append({
                             "bytes": scatto.getvalue(), "type": scatto.type, "name": scatto.name
                         })
                         st.session_state["camera_shot_counter"] += 1
                         st.rerun()
             with col_chiudi:
-                if st.button("✅ Chiudi fotocamera", use_container_width=True):
+                if st.button("Chiudi fotocamera", icon=":material/check:", use_container_width=True):
                     st.session_state["fotocamera_aperta"] = False
                     st.rerun()
         else:
             st.info("Fotocamera chiusa.")
             col_riapri, col_svuota = st.columns(2)
             with col_riapri:
-                if st.button("📷 Riapri fotocamera", use_container_width=True):
+                if st.button("Riapri fotocamera", icon=":material/photo_camera:", use_container_width=True):
                     st.session_state["fotocamera_aperta"] = True
                     st.rerun()
             with col_svuota:
                 if st.session_state["foto_catturate"]:
-                    if st.button("🗑️ Svuota", use_container_width=True):
+                    if st.button("Svuota", icon=":material/delete:", use_container_width=True):
                         st.session_state["foto_catturate"] = []
                         st.rerun()
 
     st.write("")
     col_normale, col_schizzo = st.columns(2)
     with col_normale:
-        premuto_normale = st.button("✅ Aggiungi infisso", type="primary", use_container_width=True, key=f"conferma_add_{contatore}")
+        premuto_normale = st.button("Aggiungi infisso", icon=":material/check:", type="primary", use_container_width=True, key=f"conferma_add_{contatore}")
     with col_schizzo:
-        premuto_con_schizzo = st.button("✏️ Aggiungi e disegna schizzo", use_container_width=True, key=f"conferma_add_schizzo_{contatore}")
+        premuto_con_schizzo = st.button("Aggiungi e disegna schizzo", icon=":material/draw:", use_container_width=True, key=f"conferma_add_schizzo_{contatore}")
 
     if premuto_normale or premuto_con_schizzo:
         if not tipologia:
@@ -207,7 +207,7 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
     nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
     st.markdown(f"### {nome_visualizzato}")
 
-    st.markdown("#### 📏 Misure")
+    st.markdown("#### Misure")
     col1, col2 = st.columns(2)
     with col1:
         nuova_larghezza = st.number_input("Larghezza (cm)", value=float(inf['larghezza_cm']), key=f"larg_{inf['id']}")
@@ -221,7 +221,7 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
 
     col_salva, col_elimina = st.columns(2)
     with col_salva:
-        if st.button("💾 Salva modifiche", key=f"salva_{inf['id']}", use_container_width=True, type="primary"):
+        if st.button("Salva modifiche", icon=":material/save:", key=f"salva_{inf['id']}", use_container_width=True, type="primary"):
             supabase.table("infissi").update({
                 "larghezza_cm": nuova_larghezza,
                 "altezza_cm": nuova_altezza,
@@ -230,12 +230,12 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
             st.success("Modificato!")
             st.rerun()
     with col_elimina:
-        if st.button("🗑️ Elimina infisso", key=f"elimina_{inf['id']}", use_container_width=True):
+        if st.button("Elimina infisso", icon=":material/delete:", key=f"elimina_{inf['id']}", use_container_width=True):
             supabase.table("infissi").delete().eq("id", inf['id']).execute()
             st.rerun()
 
     st.divider()
-    st.markdown("#### 📷 Foto")
+    st.markdown("#### Foto")
 
     if inf.get('foto_url'):
         st.image(inf['foto_url'], width=220)
@@ -253,13 +253,13 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
         foto_caricata = st.camera_input("Scatta una foto", key=f"foto_cam_{inf['id']}")
 
     if foto_caricata is not None:
-        if st.button("⬆️ Salva foto", key=f"salva_foto_{inf['id']}", use_container_width=True, type="primary"):
+        if st.button("Salva foto", icon=":material/upload:", key=f"salva_foto_{inf['id']}", use_container_width=True, type="primary"):
             carica_foto_bytes(foto_caricata.getvalue(), foto_caricata.type, foto_caricata.name, cartella_progetto, nome_visualizzato, inf['id'])
             st.success("Foto caricata!")
             st.rerun()
 
     st.divider()
-    st.markdown("#### ✏️ Schizzo")
+    st.markdown("#### Schizzo")
 
     def _apri_editor_schizzo():
         st.session_state["editor_schizzo_target"] = {
@@ -273,15 +273,15 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
 
     if inf.get('schizzo_url'):
         st.image(inf['schizzo_url'], width=220, caption="Schizzo attuale")
-        if st.button("✏️ Modifica questo schizzo", key=f"modifica_schizzo_esistente_{inf['id']}", use_container_width=True, type="primary"):
+        if st.button("Modifica questo schizzo", icon=":material/draw:", key=f"modifica_schizzo_esistente_{inf['id']}", use_container_width=True, type="primary"):
             _apri_editor_schizzo()
     else:
         st.caption("Nessuno schizzo ancora.")
-        if st.button("🖌️ Apri editor schizzo a schermo intero", key=f"apri_editor_{inf['id']}", use_container_width=True, type="primary"):
+        if st.button("Apri editor schizzo a schermo intero", icon=":material/draw:", key=f"apri_editor_{inf['id']}", use_container_width=True, type="primary"):
             _apri_editor_schizzo()
 
 
-@st.dialog("💸 Aggiungi maggiorazione")
+@st.dialog(":material/payments: Aggiungi maggiorazione")
 def dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi):
     descrizione = st.text_input("Nome regola", placeholder="Es. Smontaggio vecchio infisso")
 
@@ -302,7 +302,7 @@ def dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi):
         else:
             st.info("Nessun infisso ancora presente in questo progetto.")
 
-    if st.button("Aggiungi", type="primary", use_container_width=True):
+    if st.button("Aggiungi", icon=":material/check:", type="primary", use_container_width=True):
         if not descrizione:
             st.warning("Inserisci un nome per la regola.")
         else:
@@ -321,10 +321,10 @@ st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wid
 apply_custom_theme()
 
 if "progetto_corrente_id" not in st.session_state:
-    st.markdown("<div class='page-header'><h1>🪟 Gestione Progetto</h1></div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-header'><h1>Gestione Progetto</h1></div>", unsafe_allow_html=True)
     st.warning("Nessun progetto selezionato.")
-    st.page_link("pages/2_Progetti.py", label="Vai a I Miei Progetti →", icon="📁")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Oppure crea un nuovo progetto →", icon="📋")
+    st.page_link("pages/2_Progetti.py", label="Vai a Progetti →", icon=":material/folder:")
+    st.page_link("pages/1_Nuovo_Progetto.py", label="Oppure crea un nuovo progetto →", icon=":material/note_add:")
 else:
     progetto_id = st.session_state["progetto_corrente_id"]
     nome_cliente = st.session_state["progetto_corrente_nome"]
@@ -345,7 +345,7 @@ else:
         f"<div style='font-size:0.82rem; color:var(--color-text-secondary); font-weight:500; margin-bottom:2px;'>PROGETTO</div>"
         f"<h1 style='margin:0 0 2px 0;'>{nome_cliente}</h1>"
         f"<p style='color:var(--color-text-secondary); margin:0 0 0.8rem 0; font-size:0.92rem;'>"
-        f"📍 {progetto_data.get('indirizzo', '')}, {progetto_data.get('citta', '')}</p>",
+        f"{progetto_data.get('indirizzo', '')}, {progetto_data.get('citta', '')}</p>",
         unsafe_allow_html=True
     )
 
@@ -363,13 +363,13 @@ else:
 
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
-        st.markdown(f"### 🪟 Infissi <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({num_infissi_tot})</span>", unsafe_allow_html=True)
+        st.markdown(f"### Infissi <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({num_infissi_tot})</span>", unsafe_allow_html=True)
     with col_h2:
-        if st.button("+ Aggiungi infisso", type="primary", use_container_width=True):
+        if st.button("Aggiungi infisso", icon=":material/add:", type="primary", use_container_width=True):
             dialog_aggiungi_infisso(progetto_id, cartella_progetto)
 
     if lista_infissi:
-        with st.expander(f"🪟 Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
+        with st.expander(f":material/door_sliding: Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
             for inf in lista_infissi:
                 nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
 
@@ -378,9 +378,9 @@ else:
                     with col_info:
                         badge_riga = ""
                         if inf.get('foto_url'):
-                            badge_riga += badge("📷 Foto", "info") + " "
+                            badge_riga += badge("Foto", "info") + " "
                         if inf.get('schizzo_url'):
-                            badge_riga += badge("✏️ Schizzo", "info")
+                            badge_riga += badge("Schizzo", "info")
 
                         st.markdown(
                             f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
@@ -393,10 +393,10 @@ else:
                     with col_azioni:
                         b1, b2 = st.columns(2)
                         with b1:
-                            if st.button("✏️", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
+                            if st.button("", icon=":material/edit:", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
                                 dialog_dettagli_infisso(inf, cartella_progetto)
                         with b2:
-                            if st.button("📄", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
+                            if st.button("", icon=":material/content_copy:", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
                                 esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
                                 numero_nuovo = len(esistenti.data) + 1
                                 nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
@@ -413,7 +413,7 @@ else:
                                 st.success(f"Creato {nome_nuovo}")
                                 st.rerun()
     else:
-        st.info("Nessun infisso ancora inserito. Clicca \"+ Aggiungi infisso\" per iniziare.")
+        st.info("Nessun infisso ancora inserito. Clicca \"Aggiungi infisso\" per iniziare.")
 
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
@@ -421,9 +421,9 @@ else:
 
     col_hm1, col_hm2 = st.columns([3, 1])
     with col_hm1:
-        st.markdown(f"### 💸 Maggiorazioni <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({len(maggiorazioni_progetto)})</span>", unsafe_allow_html=True)
+        st.markdown(f"### Maggiorazioni <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({len(maggiorazioni_progetto)})</span>", unsafe_allow_html=True)
     with col_hm2:
-        if st.button("+ Aggiungi maggiorazione", use_container_width=True):
+        if st.button("Aggiungi maggiorazione", icon=":material/add:", use_container_width=True):
             dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi)
 
     if maggiorazioni_progetto:
@@ -436,7 +436,7 @@ else:
                     st.markdown(f"**{m['descrizione']}** — {m['importo']} {etichetta_tipo}")
                     st.caption(f"Applicata su: {riferimento}")
                 with col_e:
-                    if st.button("🗑️", key=f"elimina_magg_prog_{m['id']}", use_container_width=True):
+                    if st.button("", icon=":material/delete:", key=f"elimina_magg_prog_{m['id']}", use_container_width=True):
                         supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
                         st.rerun()
     else:
@@ -447,7 +447,7 @@ else:
 
     st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
 
-    if st.button("💰 Genera preventivo per questo progetto", type="primary", use_container_width=True):
+    if st.button("Genera preventivo per questo progetto", icon=":material/payments:", type="primary", use_container_width=True):
         if num_infissi_tot == 0:
             st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
         else:
@@ -472,12 +472,12 @@ else:
 
     col_fine, col_nuovo = st.columns(2)
     with col_fine:
-        if st.button("✅ Ho finito, vai a I Miei Progetti", use_container_width=True):
+        if st.button("Ho finito, vai a Progetti", icon=":material/check:", use_container_width=True):
             del st.session_state["progetto_corrente_id"]
             del st.session_state["progetto_corrente_nome"]
             st.switch_page("pages/2_Progetti.py")
     with col_nuovo:
-        if st.button("➕ Crea un altro progetto", use_container_width=True):
+        if st.button("Crea un altro progetto", icon=":material/add:", use_container_width=True):
             del st.session_state["progetto_corrente_id"]
             del st.session_state["progetto_corrente_nome"]
             st.switch_page("pages/1_Nuovo_Progetto.py")
