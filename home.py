@@ -1,11 +1,15 @@
 import streamlit as st
 from services.supabase import supabase
+from services.theme import apply_custom_theme, material_icon
 
 
 def format_euro(x):
     s = f"{x:,.0f}".replace(",", ".")
     return f"{s} €"
 
+
+st.set_page_config(page_title="Home", page_icon="🏠")
+apply_custom_theme()
 
 progetti = supabase.table("progetti").select(
     "id, indirizzo, citta, clienti(nome, cognome_azienda)"
@@ -39,14 +43,14 @@ st.subheader("Azioni rapide")
 col_a, col_b = st.columns(2)
 with col_a:
     with st.container(border=True):
-        st.markdown("### 📋 Nuovo Progetto")
+        st.markdown(f"### {material_icon('note_add')} Nuovo Progetto", unsafe_allow_html=True)
         st.write("Avvia un nuovo sopralluogo: dati cliente, cantiere e infissi.")
-        st.page_link("pages/1_Nuovo_Progetto.py", label="Inizia sopralluogo →", icon="📋")
+        st.page_link("pages/1_Nuovo_Progetto.py", label="Inizia sopralluogo →", icon=":material/note_add:")
 with col_b:
     with st.container(border=True):
-        st.markdown("### 💰 Nuovo Preventivo")
+        st.markdown(f"### {material_icon('payments')} Nuovo Preventivo", unsafe_allow_html=True)
         st.write("Genera un preventivo a partire da un progetto esistente.")
-        st.page_link("pages/3_Nuovo_Preventivo.py", label="Crea preventivo →", icon="💰")
+        st.page_link("pages/3_Nuovo_Preventivo.py", label="Crea preventivo →", icon=":material/payments:")
 
 st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 st.subheader("Progetti recenti")
@@ -58,12 +62,12 @@ if progetti.data:
             col1, col2 = st.columns([4, 1])
             with col1:
                 st.write(f"**{nome}**")
-                st.caption(f"📍 {p['indirizzo']}, {p['citta']}")
+                st.caption(f":material/location_on: {p['indirizzo']}, {p['citta']}")
             with col2:
-                if st.button("Apri →", key=f"apri_home_{p['id']}"):
+                if st.button("Apri", icon=":material/arrow_forward:", key=f"apri_home_{p['id']}", use_container_width=True):
                     st.session_state["progetto_corrente_id"] = p['id']
                     st.session_state["progetto_corrente_nome"] = nome
                     st.switch_page("pages/5_Gestione_Progetto.py")
 else:
     st.info("Nessun progetto ancora. Crea il primo per iniziare.")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea il primo progetto →", icon="📋")
+    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea il primo progetto →", icon=":material/note_add:")
