@@ -1,12 +1,17 @@
 import streamlit as st
 from services.supabase import supabase
+from services.theme import apply_custom_theme, material_icon
 
-st.set_page_config(page_title="Aggiungi regole personalizzate", page_icon="⚙️")
+st.set_page_config(page_title="Regole prezzo personalizzate", page_icon="⚙️")
+apply_custom_theme()
 
-st.title("⚙️ Aggiungi regole personalizzate")
-st.caption("Gestisci qui le maggiorazioni standard selezionabili in ogni preventivo (es. Smontaggio, Piano alto...).")
+st.markdown(
+    f"<div class='page-header'><h1>{material_icon('tune')} Regole prezzo personalizzate</h1>"
+    "<p>Gestisci qui le maggiorazioni standard selezionabili in ogni preventivo (es. Smontaggio, Piano alto...).</p></div>",
+    unsafe_allow_html=True
+)
 
-st.subheader("➕ Aggiungi nuova maggiorazione")
+st.markdown("#### :material/add: Aggiungi nuova regola")
 
 with st.form("nuova_maggiorazione", clear_on_submit=True):
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -17,7 +22,7 @@ with st.form("nuova_maggiorazione", clear_on_submit=True):
     with col3:
         tipo = st.selectbox("Tipo", ["€ fisso", "€/m²", "%"])
 
-    submitted = st.form_submit_button("Aggiungi")
+    submitted = st.form_submit_button("Aggiungi", icon=":material/check:")
     if submitted:
         if descrizione:
             tipo_map = {"€ fisso": "fisso", "€/m²": "mq", "%": "percentuale"}
@@ -32,7 +37,7 @@ with st.form("nuova_maggiorazione", clear_on_submit=True):
             st.warning("Inserisci una descrizione.")
 
 st.divider()
-st.subheader("📋 Maggiorazioni esistenti")
+st.markdown("#### :material/list: Regole esistenti")
 
 maggiorazioni = supabase.table("maggiorazioni").select("*").order("descrizione").execute()
 
@@ -57,7 +62,7 @@ else:
                 st.write("")
                 col_salva, col_elimina = st.columns(2)
                 with col_salva:
-                    if st.button("💾", key=f"salva_magg_{m['id']}"):
+                    if st.button("", icon=":material/save:", key=f"salva_magg_{m['id']}", help="Salva"):
                         supabase.table("maggiorazioni").update({
                             "descrizione": nuova_descr,
                             "importo": nuovo_importo,
@@ -66,6 +71,6 @@ else:
                         st.success("Aggiornata!")
                         st.rerun()
                 with col_elimina:
-                    if st.button("🗑️", key=f"elimina_magg_{m['id']}"):
+                    if st.button("", icon=":material/delete:", key=f"elimina_magg_{m['id']}", help="Elimina"):
                         supabase.table("maggiorazioni").delete().eq("id", m['id']).execute()
                         st.rerun()
