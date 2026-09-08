@@ -1,6 +1,6 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme
+from services.theme import apply_custom_theme, material_icon
 from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, trigger_download_automatico, dialog_dopo_generazione_preventivo, format_euro, slug
 from datetime import date
 
@@ -9,7 +9,7 @@ def format_num(x, decimali=2):
     return f"{x:.{decimali}f}".replace(".", ",")
 
 
-@st.dialog("Applica maggiorazione")
+@st.dialog(":material/tune: Applica maggiorazione")
 def dialog_applicazione_maggiorazione(m, lista_infissi):
     st.write(f"Vuoi applicare **{m['descrizione']}** a tutti gli infissi o solo a uno specifico?")
 
@@ -27,7 +27,7 @@ def dialog_applicazione_maggiorazione(m, lista_infissi):
         infisso_id = opzioni_infissi[nome_scelto]
         infisso_nome = nome_scelto
 
-    if st.button("Conferma", type="primary", use_container_width=True, key=f"dialog_conferma_{m['id']}"):
+    if st.button("Conferma", icon=":material/check:", type="primary", use_container_width=True, key=f"dialog_conferma_{m['id']}"):
         st.session_state["magg_applicazione"][m['id']] = {"infisso_id": infisso_id, "infisso_nome": infisso_nome}
         st.rerun()
 
@@ -36,7 +36,7 @@ st.set_page_config(page_title="Nuovo Preventivo", page_icon="💰")
 apply_custom_theme()
 
 st.markdown(
-    "<div class='page-header'><h1>💰 Nuovo Preventivo</h1>"
+    f"<div class='page-header'><h1>{material_icon('payments')} Nuovo Preventivo</h1>"
     "<p>Imposta prezzi e maggiorazioni, poi genera subito il PDF.</p></div>",
     unsafe_allow_html=True
 )
@@ -47,7 +47,7 @@ progetti = supabase.table("progetti").select(
 
 if not progetti.data:
     st.info("Nessun progetto disponibile.")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea un progetto →", icon="📋")
+    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea un progetto →", icon=":material/note_add:")
 else:
     opzioni = {
         f"{p['clienti']['nome']} {p['clienti']['cognome_azienda']} - {p['indirizzo']}, {p['citta']}": p['id']
@@ -72,7 +72,7 @@ else:
 
     if not infissi.data:
         st.warning("Questo progetto non ha ancora infissi. Aggiungili prima di creare un preventivo.")
-        st.page_link("pages/2_Progetti.py", label="Vai a I Miei Progetti →", icon="📁")
+        st.page_link("pages/2_Progetti.py", label="Vai a Progetti →", icon=":material/folder:")
     else:
         tipologie = {}
         for inf in infissi.data:
@@ -84,7 +84,7 @@ else:
         st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
         with st.container(border=True):
-            st.markdown("#### 💶 Prezzo per tipologia")
+            st.markdown("#### :material/payments: Prezzo per tipologia")
             prezzi_tipologia = {}
             for t, info in tipologie.items():
                 prezzi_tipologia[t] = st.number_input(
@@ -93,7 +93,7 @@ else:
                 )
 
         with st.container(border=True):
-            st.markdown("#### ➕ Maggiorazioni")
+            st.markdown("#### :material/add_circle: Maggiorazioni")
 
             if "magg_applicazione" not in st.session_state:
                 st.session_state["magg_applicazione"] = {}
@@ -127,15 +127,15 @@ else:
                             else:
                                 st.caption("↳ applicata su tutti gli infissi")
                         with col_modifica:
-                            if st.button("✏️", key=f"modifica_appl_{m['id']}"):
+                            if st.button("", icon=":material/edit:", key=f"modifica_appl_{m['id']}"):
                                 dialog_applicazione_maggiorazione(m, infissi.data)
                         maggiorazioni_selezionate.append(m)
             else:
                 st.caption("Nessuna maggiorazione predefinita configurata.")
-            st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon="➕")
+            st.page_link("pages/6_Maggiorazioni.py", label="Aggiungi una nuova maggiorazione", icon=":material/add:")
 
         with st.container(border=True):
-            st.markdown("#### 💸 Sconto")
+            st.markdown("#### :material/percent: Sconto")
             col_sconto_val, col_sconto_tipo = st.columns(2)
             with col_sconto_val:
                 valore_sconto = st.number_input("Valore sconto", min_value=0.0, step=1.0, key="valore_sconto")
@@ -229,7 +229,7 @@ else:
             unsafe_allow_html=True
         )
 
-        with st.expander("📊 Vedi dettaglio del calcolo"):
+        with st.expander(":material/bar_chart: Vedi dettaglio del calcolo"):
             righe_md = ["| Voce | Calcolo | Totale |", "|---|---|---|"]
             for r in righe_riepilogo:
                 voce = f"**{r['voce']}**" if r['bold'] else r['voce']
@@ -239,7 +239,7 @@ else:
 
         st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
-        if st.button("💾 Salva preventivo e genera PDF", type="primary", use_container_width=True):
+        if st.button("Salva preventivo e genera PDF", icon=":material/save:", type="primary", use_container_width=True):
             preventivo = supabase.table("preventivi").insert({
                 "progetto_id": progetto_id,
                 "totale_base": totale_base,
@@ -250,41 +250,4 @@ else:
             preventivo_id = preventivo.data[0]["id"]
 
             for t, prezzo in prezzi_tipologia.items():
-                supabase.table("preventivo_prezzi_tipologia").insert({
-                    "preventivo_id": preventivo_id,
-                    "tipologia": t,
-                    "prezzo_mq": prezzo
-                }).execute()
-
-            for m in maggiorazioni_selezionate:
-                info_appl = st.session_state["magg_applicazione"].get(m['id'], {})
-                supabase.table("preventivo_maggiorazioni").insert({
-                    "preventivo_id": preventivo_id,
-                    "maggiorazione_id": m["id"],
-                    "infisso_id": info_appl.get('infisso_id')
-                }).execute()
-
-            st.session_state["magg_applicazione"] = {}
-            st.session_state["magg_prev_stato"] = {}
-
-            with st.spinner("Generazione PDF in corso..."):
-                oggi = date.today()
-                data_formattata = f"{oggi.day:02d}/{oggi.month:02d}/{oggi.year}"
-                contesto = costruisci_contesto_pdf(
-                    numero_preventivo=preventivo_id[:8].upper(),
-                    data=data_formattata,
-                    progetto={**progetto_selezionato, "id": progetto_id},
-                    cliente=progetto_selezionato['clienti'],
-                    prezzi_tipologia=prezzi_tipologia,
-                    maggiorazioni_righe=maggiorazioni_righe_pdf,
-                    totale_base=totale_base,
-                    sconto=sconto_calcolato,
-                    totale_finale=totale_finale
-                )
-                pdf_buffer = genera_pdf_preventivo(contesto)
-
-            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente_progetto)}.pdf")
-            dialog_dopo_generazione_preventivo(
-                preventivo_id, pdf_buffer, contesto, progetto_selezionato['clienti'], nome_cliente_progetto,
-                progetto_selezionato['indirizzo'], progetto_selezionato['citta']
-            )
+                supabase.table("preventivo_pr
