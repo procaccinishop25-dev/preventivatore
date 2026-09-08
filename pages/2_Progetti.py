@@ -1,6 +1,6 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme
+from services.theme import apply_custom_theme, material_icon
 from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
 import re
 
@@ -10,7 +10,7 @@ def slug(testo):
     return re.sub(r"[^A-Za-z0-9_-]", "", testo)
 
 
-@st.dialog("⚠️ Elimina progetto")
+@st.dialog(":material/warning: Elimina progetto")
 def conferma_eliminazione(progetto_id, nome_completo):
     st.warning(
         f"Stai per eliminare definitivamente il progetto di **{nome_completo}**, "
@@ -18,7 +18,7 @@ def conferma_eliminazione(progetto_id, nome_completo):
     )
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🗑️ Sì, elimina", type="primary", use_container_width=True):
+        if st.button("Sì, elimina", icon=":material/delete:", type="primary", use_container_width=True):
             cartella_progetto = slug(nome_completo)
 
             file_esistenti = supabase.storage.from_("foto").list(cartella_progetto)
@@ -42,11 +42,11 @@ def conferma_eliminazione(progetto_id, nome_completo):
             st.rerun()
 
 
-st.set_page_config(page_title="I Miei Progetti", page_icon="📁")
+st.set_page_config(page_title="Progetti", page_icon="📁")
 apply_custom_theme()
 
 st.markdown(
-    "<div class='page-header'><h1>📁 I Miei Progetti</h1>"
+    f"<div class='page-header'><h1>{material_icon('folder')} Progetti</h1>"
     "<p>Riprendi un progetto o generane subito il preventivo.</p></div>",
     unsafe_allow_html=True
 )
@@ -55,9 +55,9 @@ progetti = supabase.table("progetti").select("*, clienti(nome, cognome_azienda, 
 
 if not progetti.data:
     st.info("Nessun progetto salvato ancora.")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea il primo progetto →", icon="📋")
+    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea il primo progetto →", icon=":material/note_add:")
 else:
-    ricerca = st.text_input("🔍 Cerca per cliente o città")
+    ricerca = st.text_input(":material/search: Cerca per cliente o città")
 
     for p in progetti.data:
         nome_completo = f"{p['clienti']['nome']} {p['clienti']['cognome_azienda']}"
@@ -73,15 +73,15 @@ else:
             col1, col2, col3, col4 = st.columns([3, 1.3, 1.5, 1])
             with col1:
                 st.subheader(nome_completo)
-                st.caption(f"📍 {p['indirizzo']}, {p['citta']}")
-                st.caption(f"🪟 {num_infissi} infissi — {mq_totali:.2f} m² totali — Stato: {p['stato']}")
+                st.caption(f":material/location_on: {p['indirizzo']}, {p['citta']}")
+                st.caption(f":material/door_sliding: {num_infissi} infissi — {mq_totali:.2f} m² totali — Stato: {p['stato']}")
             with col2:
-                if st.button("Apri →", key=f"apri_{p['id']}", use_container_width=True):
+                if st.button("Apri", icon=":material/arrow_forward:", key=f"apri_{p['id']}", use_container_width=True):
                     st.session_state["progetto_corrente_id"] = p['id']
                     st.session_state["progetto_corrente_nome"] = nome_completo
                     st.switch_page("pages/5_Gestione_Progetto.py")
             with col3:
-                if st.button("💰 Preventivo", key=f"genera_{p['id']}", use_container_width=True):
+                if st.button("Preventivo", icon=":material/payments:", key=f"genera_{p['id']}", use_container_width=True):
                     if num_infissi == 0:
                         st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
                     else:
@@ -93,5 +93,5 @@ else:
                             p['indirizzo'], p['citta']
                         )
             with col4:
-                if st.button("🗑️", key=f"elimina_{p['id']}", use_container_width=True, help="Elimina"):
+                if st.button("", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True, help="Elimina"):
                     conferma_eliminazione(p['id'], nome_completo)
