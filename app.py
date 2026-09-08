@@ -42,7 +42,6 @@ with st.sidebar:
 
     st.page_link(pagina_home, label="Home", icon="🏠")
 
-    # "Nuovo Progetto" è l'azione primaria dell'app: resa visivamente evidente
     st.markdown("<div class='sidebar-cta-primary'>", unsafe_allow_html=True)
     st.page_link(pagina_nuovo_progetto, label="Nuovo progetto", icon="➕")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -56,9 +55,6 @@ with st.sidebar:
     sidebar_section_label("Impostazioni")
     st.page_link(pagina_catalogo, label="Catalogo", icon="🛒")
     st.page_link(pagina_maggiorazioni, label="Regole prezzo personalizzate", icon="⚙️")
-
-    # "Gestione Progetto", "Nuovo Preventivo" ed "Editor Schizzo" restano raggiungibili
-    # solo tramite i pulsanti dell'app, non compaiono nel menu.
 
     st.markdown(
         "<div class='sidebar-user'>"
