@@ -237,15 +237,18 @@ def apply_custom_theme():
         min-width: 0;
     }
 
-    /* --- Azione distruttiva nel menu overflow: riconoscibile ma non urlata --- */
-    .action-danger button {
+        /* --- Azione distruttiva: st.markdown non annida davvero i bottoni nel DOM,
+       quindi usiamo st.container(key=...) che genera un vero div padre. --- */
+    [class*="st-key-dangerwrap"] button {
         border-color: transparent !important;
         background-color: transparent !important;
     }
-    .action-danger button p, .action-danger button div, .action-danger button span {
+    [class*="st-key-dangerwrap"] button p,
+    [class*="st-key-dangerwrap"] button div,
+    [class*="st-key-dangerwrap"] button span {
         color: var(--color-danger) !important;
     }
-    .action-danger button:hover {
+    [class*="st-key-dangerwrap"] button:hover {
         background-color: var(--color-danger-light) !important;
     }
 
