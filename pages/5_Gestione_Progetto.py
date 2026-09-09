@@ -231,11 +231,10 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
             st.success("Modificato!")
             st.rerun()
     with col_elimina:
-        st.markdown("<div class='action-danger'>", unsafe_allow_html=True)
-        if st.button("Elimina infisso", icon=":material/delete:", key=f"elimina_{inf['id']}", use_container_width=True):
-            supabase.table("infissi").delete().eq("id", inf['id']).execute()
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(key=f"dangerwrap_elimina_{inf['id']}"):
+            if st.button("Elimina infisso", icon=":material/delete:", key=f"elimina_{inf['id']}", use_container_width=True):
+                supabase.table("infissi").delete().eq("id", inf['id']).execute()
+                st.rerun()
 
     st.divider()
     st.markdown("#### Foto")
@@ -390,108 +389,3 @@ else:
                         titolo=nome_visualizzato,
                         sottotitolo=sottotitolo,
                         azione_primaria_label="Modifica",
-                        azione_primaria_icon="edit",
-                        key_primaria=f"mod_{inf['id']}",
-                        azione_secondaria_label="Duplica",
-                        azione_secondaria_icon="content_copy",
-                        key_secondaria=f"dup_{inf['id']}",
-                    )
-
-                    if risultato["primaria"]:
-                        dialog_dettagli_infisso(inf, cartella_progetto)
-
-                    if risultato["secondaria"]:
-                        esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
-                        numero_nuovo = len(esistenti.data) + 1
-                        nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
-                        supabase.table("infissi").insert({
-                            "progetto_id": progetto_id,
-                            "tipologia": inf['tipologia'],
-                            "numero_infisso": numero_nuovo,
-                            "nome": nome_nuovo,
-                            "larghezza_cm": inf['larghezza_cm'],
-                            "altezza_cm": inf['altezza_cm'],
-                            "quantita": 1,
-                            "note": inf['note']
-                        }).execute()
-                        st.success(f"Creato {nome_nuovo}")
-                        st.rerun()
-
-                    if idx < len(lista_infissi) - 1:
-                        st.markdown(card_divider(), unsafe_allow_html=True)
-    else:
-        st.info("Nessun infisso ancora inserito. Clicca \"Aggiungi infisso\" per iniziare.")
-
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-
-    maggiorazioni_progetto = supabase.table("progetto_maggiorazioni").select("*, infissi(nome)").eq("progetto_id", progetto_id).execute().data or []
-
-    col_hm1, col_hm2 = st.columns([3, 1])
-    with col_hm1:
-        st.markdown(f"### Maggiorazioni <span style='color:var(--color-text-secondary); font-weight:400; font-size:0.9rem;'>({len(maggiorazioni_progetto)})</span>", unsafe_allow_html=True)
-    with col_hm2:
-        if st.button("Aggiungi maggiorazione", icon=":material/add:", use_container_width=True):
-            dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi)
-
-    if maggiorazioni_progetto:
-        with st.container(border=True):
-            for idx, m in enumerate(maggiorazioni_progetto):
-                etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
-                riferimento = m.get('infissi', {}).get('nome') if m.get('infissi') else "Tutti gli infissi"
-
-                risultato = list_item(
-                    titolo=m['descrizione'],
-                    sottotitolo=f"{m['importo']} {etichetta_tipo} · Applicata su: {riferimento}",
-                    azioni_menu=[
-                        {"label": "Elimina", "icon": "delete", "key": f"elimina_magg_prog_{m['id']}", "danger": True}
-                    ],
-                )
-
-                if risultato["menu"] == f"elimina_magg_prog_{m['id']}":
-                    supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
-                    st.rerun()
-
-                if idx < len(maggiorazioni_progetto) - 1:
-                    st.markdown(card_divider(), unsafe_allow_html=True)
-    else:
-        st.caption("Nessuna maggiorazione aggiunta a questo progetto.")
-
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-    st.divider()
-
-    st.markdown("## Prossimi passi")
-
-    if st.button("Genera preventivo per questo progetto", icon=":material/payments:", type="primary", use_container_width=True):
-        if num_infissi_tot == 0:
-            st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
-        else:
-            with st.spinner("Generazione preventivo e PDF in corso..."):
-                progetto_info_pdf = {**progetto_data, "id": progetto_id}
-                preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(progetto_id, progetto_info_pdf, cliente_data)
-            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_cliente)}.pdf")
-            dialog_dopo_generazione_preventivo(
-                preventivo_id, pdf_buffer, contesto, cliente_data, nome_cliente,
-                progetto_data.get('indirizzo', ''), progetto_data.get('citta', '')
-            )
-
-    col_link1, col_link2 = st.columns([1, 3])
-    with col_link1:
-        if st.button("Preventivo personalizzato →", use_container_width=True):
-            st.session_state["preventivo_preseleziona_id"] = progetto_id
-            st.switch_page("pages/3_Nuovo_Preventivo.py")
-    with col_link2:
-        st.caption("Imposta prezzi per tipologia su misura, invece del calcolo rapido.")
-
-    st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-
-    col_fine, col_nuovo = st.columns(2)
-    with col_fine:
-        if st.button("Ho finito, vai a Progetti", icon=":material/check:", use_container_width=True):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/2_Progetti.py")
-    with col_nuovo:
-        if st.button("Crea un altro progetto", icon=":material/add:", use_container_width=True):
-            del st.session_state["progetto_corrente_id"]
-            del st.session_state["progetto_corrente_nome"]
-            st.switch_page("pages/1_Nuovo_Progetto.py")
