@@ -24,14 +24,14 @@ def apply_custom_theme():
     #MainMenu {visibility: hidden;}
 
     :root {
-        /* --- Brand: verde, unico colore primario --- */
         --color-primary: #176B52;
         --color-primary-hover: #10513E;
         --color-primary-light: #E4F1EB;
 
-        --color-bg: #F6F7F5;
+        /* --- Sfondo pi\u00f9 chiaro, quasi bianco --- */
+        --color-bg: #F8F9F8;
         --color-surface: #FFFFFF;
-        --color-surface-secondary: #F0F4F1;
+        --color-surface-secondary: #F1F3F1;
 
         --color-title: #17201C;
         --color-text: #17201C;
@@ -39,8 +39,9 @@ def apply_custom_theme():
         --color-text-secondary: #69746E;
         --color-text-disabled: #9BA39D;
 
-        --color-border: #DEE4E0;
-        --color-border-hover: #C8D2CC;
+        /* --- Bordo quasi invisibile: la separazione ora la fa l'ombra soffusa --- */
+        --color-border: #ECEFEC;
+        --color-border-hover: #D7DED9;
         --color-border-focus: #176B52;
         --focus-ring: rgba(23, 107, 82, 0.16);
 
@@ -63,14 +64,13 @@ def apply_custom_theme():
         --space-10: 40px;
         --space-12: 48px;
 
-        /* --- Radius contenuto, non arrotondato --- */
-        --radius-sm: 7px;
-        --radius-md: 8px;
-        --radius-lg: 10px;
+        --radius-sm: 8px;
+        --radius-md: 9px;
+        --radius-lg: 12px;
         --radius-pill: 999px;
 
-        /* --- Niente ombre pesanti: il bordo fa il lavoro --- */
-        --shadow-sm: none;
+        /* --- Ombra molto soffusa, mai pesante: sostituisce il bordo come separatore --- */
+        --shadow-sm: 0 1px 2px rgba(23, 32, 28, 0.03), 0 1px 3px rgba(23, 32, 28, 0.04);
     }
 
     .stApp { background-color: var(--color-bg); }
@@ -81,33 +81,36 @@ def apply_custom_theme():
         font-weight: 700 !important;
         letter-spacing: -0.01em;
     }
-    /* Il titolo di pagina deve avere più peso ("Panoramica" importante) */
     h1 { font-size: 1.6rem !important; margin-bottom: 2px !important; line-height: 1.3; font-weight: 750 !important; }
     h2 { font-size: 1rem !important; margin-top: var(--space-6) !important; margin-bottom: var(--space-2) !important; color: var(--color-title) !important; font-weight: 650 !important; }
-    h3 {
-        font-size: 0.92rem !important;
-        margin-top: var(--space-2) !important;
-        margin-bottom: 2px !important;
-        color: var(--color-title) !important;
-        font-weight: 600 !important;
-    }
+    h3 { font-size: 0.92rem !important; margin-top: var(--space-2) !important; margin-bottom: 2px !important; color: var(--color-title) !important; font-weight: 600 !important; }
 
     p, .stMarkdown, label { color: var(--color-text); font-size: 0.87rem; }
     .stCaption, [data-testid="stCaptionContainer"] { color: var(--color-text-secondary) !important; font-size: 0.78rem !important; }
 
-    /* Sottotitolo pagina: meno peso visivo del titolo */
-    .page-header p {
-        color: var(--color-text-secondary);
-        font-size: 0.86rem;
-        margin-top: 0;
-        margin-bottom: var(--space-5);
-        font-weight: 400;
-    }
+    .page-header p { color: var(--color-text-secondary); font-size: 0.86rem; margin-top: 0; margin-bottom: var(--space-5); font-weight: 400; }
 
     .card-title { font-size: 0.95rem; font-weight: 600; color: var(--color-title); margin: 0; }
     .card-description { font-size: 0.8rem; color: var(--color-text-secondary); margin: 2px 0 0 0; }
 
-    /* ============== SIDEBAR — bianca, professionale, gruppi ============== */
+    /* --- Cabecera di sezione: titolo + azione "Vedi tutti \u2192" a destra --- */
+    .section-header-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-top: var(--space-6);
+        margin-bottom: var(--space-3);
+    }
+    .section-header-row h2 { margin: 0 !important; }
+    .section-header-action {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        text-decoration: none;
+    }
+    .section-header-action:hover { color: var(--color-primary-hover); }
+
+    /* ============== SIDEBAR ============== */
     [data-testid="stSidebar"] {
         background-color: var(--color-surface);
         border-right: 1px solid var(--color-border);
@@ -168,7 +171,6 @@ def apply_custom_theme():
         font-weight: 500;
         color: var(--color-text-quiet);
     }
-    /* Elemento attivo: molto evidente, con indicatore laterale verde */
     [data-testid="stSidebar"] [aria-current="page"] {
         background-color: var(--color-primary-light) !important;
         border-left: 3px solid var(--color-primary) !important;
@@ -179,14 +181,14 @@ def apply_custom_theme():
         font-weight: 650;
     }
 
-    /* ============== BOTTONI — angoli contenuti, non a pillola ============== */
+    /* ============== BOTTONI ============== */
     button {
         border-radius: var(--radius-md) !important;
         min-height: 38px !important;
         height: 38px;
         font-weight: 550 !important;
         font-size: 0.85rem;
-        transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+        transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
         border: 1px solid var(--color-border);
         background-color: var(--color-surface);
         box-shadow: none !important;
@@ -203,7 +205,6 @@ def apply_custom_theme():
     button[kind*="primary"] p, button[kind*="primary"] div, button[kind*="primary"] span { color: #FFFFFF !important; font-weight: 600 !important; }
     button[kind*="primary"]:hover { background-color: var(--color-primary-hover) !important; border-color: var(--color-primary-hover) !important; }
 
-    /* Ghost: azioni discrete dentro le card, mai grandi CTA */
     .btn-ghost button { border-color: transparent !important; background-color: transparent !important; }
     .btn-ghost button:hover { background-color: var(--color-surface-secondary) !important; }
 
@@ -214,16 +215,15 @@ def apply_custom_theme():
     [data-testid="stDownloadButton"] button p, [data-testid="stDownloadButton"] button div, [data-testid="stDownloadButton"] button span { color: #FFFFFF !important; font-weight: 600 !important; }
     [data-testid="stDownloadButton"] button:hover { background-color: var(--color-primary-hover) !important; }
 
-    /* ============== CARD — sobrie, bordo sottile, hover solo se cliccabile ============== */
+    /* ============== CARD — bianche, bordo quasi invisibile, ombra soffusa ============== */
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: var(--radius-lg) !important;
         border: 1px solid var(--color-border) !important;
         background-color: var(--color-surface);
         padding: var(--space-1);
-        box-shadow: none !important;
-        transition: border-color 180ms ease, background-color 180ms ease;
+        box-shadow: var(--shadow-sm) !important;
+        transition: box-shadow 180ms ease, border-color 180ms ease;
     }
-    /* Hover discreto — vale per card che rappresentano elementi cliccabili (progetti, preventivi...) */
     [data-testid="stVerticalBlockBorderWrapper"]:hover {
         border-color: var(--color-border-hover) !important;
     }
@@ -231,13 +231,13 @@ def apply_custom_theme():
     .row-actions { opacity: 1; }
     .card-divider { border-top: 1px solid var(--color-border); margin: var(--space-3) 0; }
 
-    /* ============== METRICHE / STAT CARD — compatte, numero grande ============== */
+    /* ============== METRICHE ============== */
     [data-testid="stMetric"] {
         background-color: var(--color-surface);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         padding: var(--space-4) var(--space-5);
-        box-shadow: none;
+        box-shadow: var(--shadow-sm);
     }
     [data-testid="stMetricValue"] {
         color: var(--color-title) !important;
@@ -292,11 +292,11 @@ def apply_custom_theme():
         border-radius: var(--radius-lg) !important;
         border: 1px solid var(--color-border) !important;
         background-color: var(--color-surface);
-        box-shadow: none;
+        box-shadow: var(--shadow-sm);
     }
     [data-testid="stExpander"] summary { font-size: 0.85rem; font-weight: 550; color: var(--color-text-quiet); }
 
-    /* ============== TABELLE — dense, header discreto ============== */
+    /* ============== TABELLE ============== */
     .stMarkdown table { border-collapse: collapse; width: 100%; }
     .stMarkdown table thead th {
         background-color: transparent !important;
@@ -339,7 +339,7 @@ def apply_custom_theme():
     a { color: var(--color-primary) !important; font-weight: 600; transition: color 150ms ease; }
     a:hover { color: var(--color-primary-hover) !important; }
 
-    /* ============== EMPTY STATE — minimale, elegante ============== */
+    /* ============== EMPTY STATE ============== */
     .empty-state { text-align: center; padding: var(--space-10) var(--space-6); color: var(--color-text-secondary); }
     .empty-state-icon { margin-bottom: var(--space-3); opacity: 0.55; color: var(--color-text-disabled); }
     .empty-state-title { font-size: 0.95rem; font-weight: 650; color: var(--color-title); margin-bottom: 2px; }
@@ -349,7 +349,6 @@ def apply_custom_theme():
 
 
 def badge(testo, tipo="neutral"):
-    """Badge sobrio a pillola — SOLO i badge sono pill, mai le card."""
     stili = {
         "success":   ("#176B52", "#E4F1EB"),
         "warning":   ("#B85E2D", "#FFF1E8"),
@@ -389,7 +388,6 @@ def material_icon(nome, dimensione=20):
 
 
 def card_header(titolo, descrizione=None):
-    """Intestazione coerente per l'inizio di una card: titolo + descrizione secondaria."""
     html = f"<div class='card-title'>{titolo}</div>"
     if descrizione:
         html += f"<div class='card-description'>{descrizione}</div>"
@@ -397,5 +395,10 @@ def card_header(titolo, descrizione=None):
 
 
 def card_divider():
-    """Divider sottile da usare SOLO quando separa davvero header/contenuto/footer di una card."""
     return "<div class='card-divider'></div>"
+
+
+def section_header_row(titolo, testo_azione=None):
+    """Apre una riga con titolo di sezione a sinistra + link azione ('Vedi tutti \u2192') a destra.
+    Va chiusa manualmente con </div> dopo aver stampato il link con st.page_link o st.markdown."""
+    return f"<div class='section-header-row'><h2>{titolo}</h2>"
