@@ -237,8 +237,9 @@ def apply_custom_theme():
         min-width: 0;
     }
 
-        /* --- Azione distruttiva: st.markdown non annida davvero i bottoni nel DOM,
-       quindi usiamo st.container(key=...) che genera un vero div padre. --- */
+    /* --- Azione distruttiva: st.markdown non annida davvero i bottoni nel DOM,
+       quindi usiamo st.container(key=...) che genera un vero div padre
+       con classe "st-key-<chiave>", intercettabile in modo affidabile. --- */
     [class*="st-key-dangerwrap"] button {
         border-color: transparent !important;
         background-color: transparent !important;
