@@ -28,7 +28,6 @@ def apply_custom_theme():
         --color-primary-hover: #10513E;
         --color-primary-light: #E4F1EB;
 
-        /* --- Sfondo pi\u00f9 chiaro, quasi bianco --- */
         --color-bg: #F8F9F8;
         --color-surface: #FFFFFF;
         --color-surface-secondary: #F1F3F1;
@@ -39,7 +38,6 @@ def apply_custom_theme():
         --color-text-secondary: #69746E;
         --color-text-disabled: #9BA39D;
 
-        /* --- Bordo quasi invisibile: la separazione ora la fa l'ombra soffusa --- */
         --color-border: #ECEFEC;
         --color-border-hover: #D7DED9;
         --color-border-focus: #176B52;
@@ -69,7 +67,6 @@ def apply_custom_theme():
         --radius-lg: 12px;
         --radius-pill: 999px;
 
-        /* --- Ombra molto soffusa, mai pesante: sostituisce il bordo come separatore --- */
         --shadow-sm: 0 1px 2px rgba(23, 32, 28, 0.03), 0 1px 3px rgba(23, 32, 28, 0.04);
     }
 
@@ -93,7 +90,6 @@ def apply_custom_theme():
     .card-title { font-size: 0.95rem; font-weight: 600; color: var(--color-title); margin: 0; }
     .card-description { font-size: 0.8rem; color: var(--color-text-secondary); margin: 2px 0 0 0; }
 
-    /* --- Cabecera di sezione: titolo + azione "Vedi tutti \u2192" a destra --- */
     .section-header-row {
         display: flex;
         align-items: baseline;
@@ -215,7 +211,7 @@ def apply_custom_theme():
     [data-testid="stDownloadButton"] button p, [data-testid="stDownloadButton"] button div, [data-testid="stDownloadButton"] button span { color: #FFFFFF !important; font-weight: 600 !important; }
     [data-testid="stDownloadButton"] button:hover { background-color: var(--color-primary-hover) !important; }
 
-    /* ============== CARD — bianche, bordo quasi invisibile, ombra soffusa ============== */
+    /* ============== CARD ============== */
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: var(--radius-lg) !important;
         border: 1px solid var(--color-border) !important;
@@ -230,6 +226,28 @@ def apply_custom_theme():
 
     .row-actions { opacity: 1; }
     .card-divider { border-top: 1px solid var(--color-border); margin: var(--space-3) 0; }
+
+    /* --- Responsive: le righe di colonne vanno a capo invece di schiacciarsi
+       su schermi stretti, invece di assumere che Streamlit lo faccia da solo --- */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap;
+        row-gap: var(--space-2);
+    }
+    [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        min-width: 0;
+    }
+
+    /* --- Azione distruttiva nel menu overflow: riconoscibile ma non urlata --- */
+    .action-danger button {
+        border-color: transparent !important;
+        background-color: transparent !important;
+    }
+    .action-danger button p, .action-danger button div, .action-danger button span {
+        color: var(--color-danger) !important;
+    }
+    .action-danger button:hover {
+        background-color: var(--color-danger-light) !important;
+    }
 
     /* ============== METRICHE ============== */
     [data-testid="stMetric"] {
@@ -295,6 +313,14 @@ def apply_custom_theme():
         box-shadow: var(--shadow-sm);
     }
     [data-testid="stExpander"] summary { font-size: 0.85rem; font-weight: 550; color: var(--color-text-quiet); }
+
+    /* ============== POPOVER (menu overflow "⋯") ============== */
+    [data-testid="stPopoverBody"] {
+        border-radius: var(--radius-lg) !important;
+        border: 1px solid var(--color-border) !important;
+        box-shadow: var(--shadow-sm);
+        padding: var(--space-2) !important;
+    }
 
     /* ============== TABELLE ============== */
     .stMarkdown table { border-collapse: collapse; width: 100%; }
@@ -399,6 +425,4 @@ def card_divider():
 
 
 def section_header_row(titolo, testo_azione=None):
-    """Apre una riga con titolo di sezione a sinistra + link azione ('Vedi tutti \u2192') a destra.
-    Va chiusa manualmente con </div> dopo aver stampato il link con st.page_link o st.markdown."""
     return f"<div class='section-header-row'><h2>{titolo}</h2>"
