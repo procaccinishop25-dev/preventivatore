@@ -141,11 +141,10 @@ else:
                                 st.success("Aggiornato!")
                                 st.rerun()
                         with col_elimina:
-                            st.markdown("<div class='action-danger'>", unsafe_allow_html=True)
-                            if st.button("Elimina", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True):
-                                supabase.table("catalogo_prodotti").delete().eq("id", p['id']).execute()
-                                st.rerun()
-                            st.markdown("</div>", unsafe_allow_html=True)
+                            with st.container(key=f"dangerwrap_elimina_{p['id']}"):
+                                if st.button("Elimina", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True):
+                                    supabase.table("catalogo_prodotti").delete().eq("id", p['id']).execute()
+                                    st.rerun()
 
                     if idx < len(gruppi[mat]) - 1:
                         st.markdown(card_divider(), unsafe_allow_html=True)
