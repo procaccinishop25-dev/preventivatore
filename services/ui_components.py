@@ -138,15 +138,13 @@ def list_item(
             with sotto_colonne[indice]:
                 with st.popover("⋯", use_container_width=True):
                     for azione in azioni_menu:
-                        classe = "action-danger" if azione.get("danger") else ""
-                        if classe:
-                            st.markdown(f"<div class='{classe}'>", unsafe_allow_html=True)
-                        if st.button(
-                            azione["label"], icon=f":material/{azione['icon']}:",
-                            key=azione["key"], use_container_width=True
-                        ):
-                            risultato["menu"] = azione["key"]
-                        if classe:
-                            st.markdown("</div>", unsafe_allow_html=True)
+                        e_distruttiva = azione.get("danger")
+                        contenitore = st.container(key=f"dangerwrap_{azione['key']}") if e_distruttiva else st.container()
+                        with contenitore:
+                            if st.button(
+                                azione["label"], icon=f":material/{azione['icon']}:",
+                                key=azione["key"], use_container_width=True
+                            ):
+                                risultato["menu"] = azione["key"]
 
     return risultato
