@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, badge
+from services.theme import apply_custom_theme, card_divider
+from services.ui_components import list_item
 from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
 import re
 
@@ -230,9 +231,11 @@ def dialog_dettagli_infisso(inf, cartella_progetto):
             st.success("Modificato!")
             st.rerun()
     with col_elimina:
+        st.markdown("<div class='action-danger'>", unsafe_allow_html=True)
         if st.button("Elimina infisso", icon=":material/delete:", key=f"elimina_{inf['id']}", use_container_width=True):
             supabase.table("infissi").delete().eq("id", inf['id']).execute()
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
     st.markdown("#### Foto")
@@ -321,7 +324,7 @@ st.set_page_config(page_title="Gestione Progetto", page_icon="🪟", layout="wid
 apply_custom_theme()
 
 if "progetto_corrente_id" not in st.session_state:
-    st.markdown("<div class='page-header'><h1>Gestione Progetto</h1></div>", unsafe_allow_html=True)
+    st.markdown("<h1>Gestione Progetto</h1>", unsafe_allow_html=True)
     st.warning("Nessun progetto selezionato.")
     st.page_link("pages/2_Progetti.py", label="Vai a Progetti →", icon=":material/folder:")
     st.page_link("pages/1_Nuovo_Progetto.py", label="Oppure crea un nuovo progetto →", icon=":material/note_add:")
@@ -342,9 +345,9 @@ else:
     mq_tot = sum(i['mq'] * i['quantita'] for i in lista_infissi)
 
     st.markdown(
-        f"<div style='font-size:0.82rem; color:var(--color-text-secondary); font-weight:500; margin-bottom:2px;'>PROGETTO</div>"
+        f"<div style='font-size:0.72rem; color:var(--color-text-disabled); font-weight:700; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:2px;'>PROGETTO</div>"
         f"<h1 style='margin:0 0 2px 0;'>{nome_cliente}</h1>"
-        f"<p style='color:var(--color-text-secondary); margin:0 0 0.8rem 0; font-size:0.92rem;'>"
+        f"<p style='color:var(--color-text-secondary); margin:0 0 0.8rem 0; font-size:0.87rem;'>"
         f"{progetto_data.get('indirizzo', '')}, {progetto_data.get('citta', '')}</p>",
         unsafe_allow_html=True
     )
@@ -352,11 +355,11 @@ else:
     st.markdown(
         f"<div style='display:flex; gap:2.2rem; align-items:center; padding:0.7rem 0; "
         f"border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border); margin-bottom:1.2rem;'>"
-        f"<div><span style='color:var(--color-text-secondary); font-size:0.82rem;'>Infissi &nbsp;</span>"
-        f"<span style='color:var(--color-title); font-weight:700; font-size:1rem;'>{num_infissi_tot}</span></div>"
+        f"<div><span style='color:var(--color-text-secondary); font-size:0.78rem;'>Infissi &nbsp;</span>"
+        f"<span style='color:var(--color-title); font-weight:700; font-size:0.95rem;'>{num_infissi_tot}</span></div>"
         f"<div style='width:1px; height:18px; background-color:var(--color-border);'></div>"
-        f"<div><span style='color:var(--color-text-secondary); font-size:0.82rem;'>Superficie totale &nbsp;</span>"
-        f"<span style='color:var(--color-primary); font-weight:700; font-size:1rem;'>{mq_tot:.2f} m²</span></div>"
+        f"<div><span style='color:var(--color-text-secondary); font-size:0.78rem;'>Superficie totale &nbsp;</span>"
+        f"<span class='num-tabular' style='color:var(--color-primary); font-weight:700; font-size:0.95rem;'>{mq_tot:.2f} m²</span></div>"
         f"</div>",
         unsafe_allow_html=True
     )
@@ -369,49 +372,53 @@ else:
             dialog_aggiungi_infisso(progetto_id, cartella_progetto)
 
     if lista_infissi:
-        with st.expander(f":material/door_sliding: Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
-            for inf in lista_infissi:
-                nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
+        with st.expander(f"Inseriti {num_infissi_tot} infissi — clicca per vedere l'elenco", expanded=False):
+            with st.container(border=True):
+                for idx, inf in enumerate(lista_infissi):
+                    nome_visualizzato = inf.get('nome') or f"{inf['tipologia']} {inf.get('numero_infisso', '')}"
 
-                with st.container(border=True):
-                    col_info, col_azioni = st.columns([3, 1.4])
-                    with col_info:
-                        badge_riga = ""
-                        if inf.get('foto_url'):
-                            badge_riga += badge("Foto", "info") + " "
-                        if inf.get('schizzo_url'):
-                            badge_riga += badge("Schizzo", "info")
+                    tag_extra = []
+                    if inf.get('foto_url'):
+                        tag_extra.append("Foto")
+                    if inf.get('schizzo_url'):
+                        tag_extra.append("Schizzo")
+                    tag_str = f" · {', '.join(tag_extra)}" if tag_extra else ""
 
-                        st.markdown(
-                            f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>{nome_visualizzato}</div>"
-                            f"<div style='color:var(--color-text-secondary); font-size:0.85rem; margin:2px 0 4px 0;'>"
-                            f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm &nbsp;·&nbsp; "
-                            f"<span style='color:var(--color-primary); font-weight:600;'>{inf['mq']} m²</span></div>"
-                            f"{badge_riga}",
-                            unsafe_allow_html=True
-                        )
-                    with col_azioni:
-                        b1, b2 = st.columns(2)
-                        with b1:
-                            if st.button("", icon=":material/edit:", key=f"mod_{inf['id']}", use_container_width=True, help="Modifica"):
-                                dialog_dettagli_infisso(inf, cartella_progetto)
-                        with b2:
-                            if st.button("", icon=":material/content_copy:", key=f"dup_{inf['id']}", use_container_width=True, help="Duplica"):
-                                esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
-                                numero_nuovo = len(esistenti.data) + 1
-                                nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
-                                supabase.table("infissi").insert({
-                                    "progetto_id": progetto_id,
-                                    "tipologia": inf['tipologia'],
-                                    "numero_infisso": numero_nuovo,
-                                    "nome": nome_nuovo,
-                                    "larghezza_cm": inf['larghezza_cm'],
-                                    "altezza_cm": inf['altezza_cm'],
-                                    "quantita": 1,
-                                    "note": inf['note']
-                                }).execute()
-                                st.success(f"Creato {nome_nuovo}")
-                                st.rerun()
+                    sottotitolo = f"{inf['larghezza_cm']}×{inf['altezza_cm']} cm · {inf['mq']} m²{tag_str}"
+
+                    risultato = list_item(
+                        titolo=nome_visualizzato,
+                        sottotitolo=sottotitolo,
+                        azione_primaria_label="Modifica",
+                        azione_primaria_icon="edit",
+                        key_primaria=f"mod_{inf['id']}",
+                        azione_secondaria_label="Duplica",
+                        azione_secondaria_icon="content_copy",
+                        key_secondaria=f"dup_{inf['id']}",
+                    )
+
+                    if risultato["primaria"]:
+                        dialog_dettagli_infisso(inf, cartella_progetto)
+
+                    if risultato["secondaria"]:
+                        esistenti = supabase.table("infissi").select("id").eq("progetto_id", progetto_id).eq("tipologia", inf['tipologia']).execute()
+                        numero_nuovo = len(esistenti.data) + 1
+                        nome_nuovo = f"{inf['tipologia'].replace('-', ' ')} {numero_nuovo:02d}"
+                        supabase.table("infissi").insert({
+                            "progetto_id": progetto_id,
+                            "tipologia": inf['tipologia'],
+                            "numero_infisso": numero_nuovo,
+                            "nome": nome_nuovo,
+                            "larghezza_cm": inf['larghezza_cm'],
+                            "altezza_cm": inf['altezza_cm'],
+                            "quantita": 1,
+                            "note": inf['note']
+                        }).execute()
+                        st.success(f"Creato {nome_nuovo}")
+                        st.rerun()
+
+                    if idx < len(lista_infissi) - 1:
+                        st.markdown(card_divider(), unsafe_allow_html=True)
     else:
         st.info("Nessun infisso ancora inserito. Clicca \"Aggiungi infisso\" per iniziare.")
 
@@ -427,25 +434,32 @@ else:
             dialog_aggiungi_maggiorazione_progetto(progetto_id, lista_infissi)
 
     if maggiorazioni_progetto:
-        for m in maggiorazioni_progetto:
-            etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
-            riferimento = m.get('infissi', {}).get('nome') if m.get('infissi') else "Tutti gli infissi"
-            with st.container(border=True):
-                col_i, col_e = st.columns([4, 1])
-                with col_i:
-                    st.markdown(f"**{m['descrizione']}** — {m['importo']} {etichetta_tipo}")
-                    st.caption(f"Applicata su: {riferimento}")
-                with col_e:
-                    if st.button("", icon=":material/delete:", key=f"elimina_magg_prog_{m['id']}", use_container_width=True):
-                        supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
-                        st.rerun()
+        with st.container(border=True):
+            for idx, m in enumerate(maggiorazioni_progetto):
+                etichetta_tipo = {"mq": "€/m²", "fisso": "€ fisso", "percentuale": "%"}.get(m['tipo'], m['tipo'])
+                riferimento = m.get('infissi', {}).get('nome') if m.get('infissi') else "Tutti gli infissi"
+
+                risultato = list_item(
+                    titolo=m['descrizione'],
+                    sottotitolo=f"{m['importo']} {etichetta_tipo} · Applicata su: {riferimento}",
+                    azioni_menu=[
+                        {"label": "Elimina", "icon": "delete", "key": f"elimina_magg_prog_{m['id']}", "danger": True}
+                    ],
+                )
+
+                if risultato["menu"] == f"elimina_magg_prog_{m['id']}":
+                    supabase.table("progetto_maggiorazioni").delete().eq("id", m['id']).execute()
+                    st.rerun()
+
+                if idx < len(maggiorazioni_progetto) - 1:
+                    st.markdown(card_divider(), unsafe_allow_html=True)
     else:
         st.caption("Nessuna maggiorazione aggiunta a questo progetto.")
 
     st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
     st.divider()
 
-    st.markdown("<p style='font-weight:600; color:var(--color-title); margin-bottom:0.6rem;'>Prossimi passi</p>", unsafe_allow_html=True)
+    st.markdown("## Prossimi passi")
 
     if st.button("Genera preventivo per questo progetto", icon=":material/payments:", type="primary", use_container_width=True):
         if num_infissi_tot == 0:
