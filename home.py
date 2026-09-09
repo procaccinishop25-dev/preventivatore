@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, badge, card_divider
+from services.theme import apply_custom_theme, card_divider
+from services.ui_components import page_toolbar, section_link_header, list_item
 
 
 def format_euro(x):
@@ -29,10 +30,7 @@ for pv in (preventivi.data or []):
     if esistente is None or pv['created_at'] > esistente['created_at']:
         ultimo_preventivo_per_progetto[pid] = pv
 
-st.markdown(
-    "<div class='page-header'><h1>Panoramica</h1><p>Bentornato — ecco lo stato dei tuoi progetti e preventivi.</p></div>",
-    unsafe_allow_html=True
-)
+page_toolbar("Panoramica", "Bentornato — ecco lo stato dei tuoi progetti e preventivi.")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -55,36 +53,35 @@ with col_b:
 
 st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
-col_titolo, col_azione = st.columns([5, 1])
-with col_titolo:
-    st.markdown("### Progetti recenti")
-with col_azione:
-    st.page_link("pages/2_Progetti.py", label="Vedi tutti", icon=":material/arrow_forward:")
+section_link_header("Progetti recenti", "pages/2_Progetti.py")
 
 if progetti.data:
     with st.container(border=True):
-        for idx, p in enumerate(progetti.data[:5]):
+        recenti = progetti.data[:5]
+        for idx, p in enumerate(recenti):
             nome = f"{p['clienti']['nome']} {p['clienti']['cognome_azienda']}"
             pv_recente = ultimo_preventivo_per_progetto.get(p['id'])
 
-            col1, col2, col3, col4 = st.columns([2.6, 1.6, 1.3, 1])
-            with col1:
-                st.markdown(f"<span style='font-weight:600; color:var(--color-title); font-size:0.87rem;'>{nome}</span>", unsafe_allow_html=True)
-                st.markdown(f"<span style='color:var(--color-text-secondary); font-size:0.8rem;'>{p['citta']}</span>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(badge((p.get('stato') or "—").capitalize(), "neutral"), unsafe_allow_html=True)
-            with col3:
-                if pv_recente:
-                    st.markdown(f"<span class='num-tabular' style='font-weight:600; color:var(--color-title); font-size:0.87rem;'>{format_euro(pv_recente.get('totale_finale') or 0)}</span>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<span style='color:var(--color-text-disabled); font-size:0.85rem;'>—</span>", unsafe_allow_html=True)
-            with col4:
-                if st.button("Apri", icon=":material/arrow_forward:", key=f"apri_home_{p['id']}", use_container_width=True):
-                    st.session_state["progetto_corrente_id"] = p['id']
-                    st.session_state["progetto_corrente_nome"] = nome
-                    st.switch_page("pages/5_Gestione_Progetto.py")
+            sottotitolo = p['citta'] or ""
+            if pv_recente:
+                sottotitolo += f" · {format_euro(pv_recente.get('totale_finale') or 0)}"
 
-            if idx < len(progetti.data[:5]) - 1:
+            risultato = list_item(
+                titolo=nome,
+                sottotitolo=sottotitolo,
+                stato_testo=(p.get('stato') or "—").capitalize(),
+                stato_tipo="neutral",
+                azione_primaria_label="Apri",
+                azione_primaria_icon="arrow_forward",
+                key_primaria=f"apri_home_{p['id']}",
+            )
+
+            if risultato["primaria"]:
+                st.session_state["progetto_corrente_id"] = p['id']
+                st.session_state["progetto_corrente_nome"] = nome
+                st.switch_page("pages/5_Gestione_Progetto.py")
+
+            if idx < len(recenti) - 1:
                 st.markdown(card_divider(), unsafe_allow_html=True)
 else:
     st.markdown(
