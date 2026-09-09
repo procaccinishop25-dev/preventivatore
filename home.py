@@ -22,7 +22,6 @@ num_preventivi = len(preventivi.data) if preventivi.data else 0
 valore_attivo = sum((p.get('totale_finale') or 0) for p in (preventivi.data or []) if p.get('stato') in ('bozza', 'inviato'))
 valore_accettato = sum((p.get('totale_finale') or 0) for p in (preventivi.data or []) if p.get('stato') == 'accettato')
 
-# Ultimo preventivo per ciascun progetto (riusa i dati già caricati, nessuna query extra)
 ultimo_preventivo_per_progetto = {}
 for pv in (preventivi.data or []):
     pid = pv['progetto_id']
@@ -55,7 +54,12 @@ with col_b:
     st.page_link("pages/3_Nuovo_Preventivo.py", label="Nuovo preventivo", icon=":material/payments:", use_container_width=True)
 
 st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-st.subheader("Progetti recenti")
+
+col_titolo, col_azione = st.columns([5, 1])
+with col_titolo:
+    st.markdown("### Progetti recenti")
+with col_azione:
+    st.page_link("pages/2_Progetti.py", label="Vedi tutti", icon=":material/arrow_forward:")
 
 if progetti.data:
     with st.container(border=True):
