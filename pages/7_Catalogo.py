@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme
+from services.theme import apply_custom_theme, card_divider
+from services.ui_components import page_toolbar
 import uuid
 
 
@@ -16,10 +17,9 @@ def carica_foto_prodotto(bytes_data, tipo, nome_file):
 st.set_page_config(page_title="Catalogo", page_icon="🛒")
 apply_custom_theme()
 
-st.markdown(
-    "<div class='page-header'><h1>🛒 Catalogo</h1>"
-    "<p>I prodotti selezionabili quando aggiungi un infisso a un progetto.</p></div>",
-    unsafe_allow_html=True
+page_toolbar(
+    "Catalogo",
+    "I prodotti selezionabili quando aggiungi un infisso a un progetto."
 )
 
 if "catalogo_form_counter" not in st.session_state:
@@ -28,7 +28,7 @@ if "catalogo_form_counter" not in st.session_state:
 contatore_form = st.session_state["catalogo_form_counter"]
 
 with st.container(border=True):
-    st.markdown("#### ➕ Aggiungi nuovo prodotto")
+    st.markdown("#### Aggiungi nuovo prodotto")
     st.caption("Suggerimento: includi il materiale nel nome, es. \"Finestra Alluminio\", per riconoscerlo facilmente.")
 
     nome_p = st.text_input("Nome prodotto", key=f"nuovo_prod_nome_{contatore_form}", placeholder="Es. Finestra Alluminio")
@@ -42,7 +42,7 @@ with st.container(border=True):
     descrizione_p = st.text_area("Descrizione", key=f"nuovo_prod_descr_{contatore_form}", height=80)
     foto_p = st.file_uploader("Foto prodotto (opzionale)", type=["jpg", "jpeg", "png"], key=f"nuovo_prod_foto_{contatore_form}")
 
-    if st.button("Aggiungi prodotto", type="primary", use_container_width=True):
+    if st.button("Aggiungi prodotto", icon=":material/add:", type="primary", use_container_width=True):
         if not nome_p:
             st.warning("Inserisci almeno il nome del prodotto.")
         else:
@@ -61,9 +61,9 @@ with st.container(border=True):
             st.rerun()
 
 st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
-st.markdown("#### 📋 Prodotti nel catalogo")
+st.markdown("### Prodotti nel catalogo")
 
-ricerca = st.text_input("🔍 Cerca prodotto per nome", key="ricerca_catalogo")
+ricerca = st.text_input("Cerca prodotto per nome", key="ricerca_catalogo", placeholder="Cerca prodotto per nome", label_visibility="collapsed")
 
 prodotti = supabase.table("catalogo_prodotti").select("*").order("nome").execute().data or []
 
@@ -71,10 +71,13 @@ if ricerca:
     prodotti = [p for p in prodotti if ricerca.lower() in p['nome'].lower()]
 
 if not prodotti:
-    if ricerca:
-        st.info("Nessun prodotto trovato con questo nome.")
-    else:
-        st.info("Nessun prodotto ancora. Aggiungine uno qui sopra.")
+    st.markdown(
+        "<div class='empty-state'>"
+        f"<div class='empty-state-title'>{'Nessun risultato' if ricerca else 'Nessun prodotto ancora'}</div>"
+        f"<div class='empty-state-description'>{'Nessun prodotto trovato con questo nome.' if ricerca else 'Aggiungine uno qui sopra per iniziare.'}</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
 else:
     gruppi = {}
     for p in prodotti:
@@ -85,30 +88,32 @@ else:
         if mat not in gruppi:
             continue
 
-        with st.expander(f"📁 Prodotti in {mat} ({len(gruppi[mat])})", expanded=bool(ricerca)):
-            for p in gruppi[mat]:
-                chiave_dettagli = f"mostra_dettagli_{p['id']}"
-                if chiave_dettagli not in st.session_state:
-                    st.session_state[chiave_dettagli] = False
+        with st.expander(f"Prodotti in {mat} ({len(gruppi[mat])})", expanded=False):
+            with st.container(border=True):
+                for idx, p in enumerate(gruppi[mat]):
+                    chiave_dettagli = f"mostra_dettagli_{p['id']}"
+                    if chiave_dettagli not in st.session_state:
+                        st.session_state[chiave_dettagli] = False
 
-                with st.container(border=True):
                     col_foto, col_info, col_toggle = st.columns([1, 3, 1])
                     with col_foto:
                         if p.get('foto_url'):
-                            st.image(p['foto_url'], width=70)
+                            st.image(p['foto_url'], width=64)
                         else:
-                            st.caption("Nessuna foto")
+                            st.caption("—")
                     with col_info:
-                        st.markdown(f"**{p['nome']}**")
-                        st.caption(f"{p['prezzo_standard_mq']:.2f} €/m²" if p.get('prezzo_standard_mq') is not None else "Prezzo non impostato")
+                        st.markdown(f"<span style='font-weight:600; color:var(--color-title); font-size:0.88rem;'>{p['nome']}</span>", unsafe_allow_html=True)
+                        prezzo_str = f"{p['prezzo_standard_mq']:.2f} €/m²" if p.get('prezzo_standard_mq') is not None else "Prezzo non impostato"
+                        st.markdown(f"<span class='num-tabular' style='color:var(--color-text-secondary); font-size:0.8rem;'>{prezzo_str}</span>", unsafe_allow_html=True)
                     with col_toggle:
                         etichetta_bottone = "Chiudi" if st.session_state[chiave_dettagli] else "Dettagli"
-                        if st.button(etichetta_bottone, key=f"toggle_{p['id']}", use_container_width=True):
+                        icona_bottone = "close" if st.session_state[chiave_dettagli] else "tune"
+                        if st.button(etichetta_bottone, icon=f":material/{icona_bottone}:", key=f"toggle_{p['id']}", use_container_width=True):
                             st.session_state[chiave_dettagli] = not st.session_state[chiave_dettagli]
                             st.rerun()
 
                     if st.session_state[chiave_dettagli]:
-                        st.divider()
+                        st.markdown(card_divider(), unsafe_allow_html=True)
                         nuovo_nome = st.text_input("Nome", value=p['nome'], key=f"nome_{p['id']}")
 
                         col_m2, col_pr2 = st.columns(2)
@@ -123,7 +128,7 @@ else:
 
                         col_salva, col_elimina = st.columns(2)
                         with col_salva:
-                            if st.button("💾 Salva", key=f"salva_{p['id']}", use_container_width=True, type="primary"):
+                            if st.button("Salva", icon=":material/save:", key=f"salva_{p['id']}", use_container_width=True, type="primary"):
                                 aggiornamento = {
                                     "nome": nuovo_nome,
                                     "materiale": nuovo_materiale,
@@ -136,6 +141,11 @@ else:
                                 st.success("Aggiornato!")
                                 st.rerun()
                         with col_elimina:
-                            if st.button("🗑️ Elimina", key=f"elimina_{p['id']}", use_container_width=True):
+                            st.markdown("<div class='action-danger'>", unsafe_allow_html=True)
+                            if st.button("Elimina", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True):
                                 supabase.table("catalogo_prodotti").delete().eq("id", p['id']).execute()
                                 st.rerun()
+                            st.markdown("</div>", unsafe_allow_html=True)
+
+                    if idx < len(gruppi[mat]) - 1:
+                        st.markdown(card_divider(), unsafe_allow_html=True)
