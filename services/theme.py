@@ -24,57 +24,53 @@ def apply_custom_theme():
     #MainMenu {visibility: hidden;}
 
     :root {
-        /* --- Brand: rosso riservato alle azioni/CTA reali --- */
-        --color-primary: #D92D20;
-        --color-primary-hover: #B42318;
-        --color-primary-light: #FEF3F2;
+        /* --- Brand: verde, unico colore primario --- */
+        --color-primary: #176B52;
+        --color-primary-hover: #10513E;
+        --color-primary-light: #E4F1EB;
 
-        /* --- Accento descrittivo: blu/lavanda, per icone e badge informativi --- */
-        --color-accent: #4457C9;
-        --color-accent-light: #EEF0FC;
-        --color-accent-dark: #363F8C;
-
-        /* --- Sfondo: lavanda molto tenue, superfici bianche --- */
-        --color-bg: #F4F5FB;
+        --color-bg: #F6F7F5;
         --color-surface: #FFFFFF;
+        --color-surface-secondary: #F0F4F1;
 
-        --color-title: #14151A;
-        --color-text: #2D2F31;
-        --color-text-quiet: #4B4F54;
-        --color-text-secondary: #6B7076;
-        --color-text-disabled: #9CA0A6;
+        --color-title: #17201C;
+        --color-text: #17201C;
+        --color-text-quiet: #3D453F;
+        --color-text-secondary: #69746E;
+        --color-text-disabled: #9BA39D;
 
-        --color-border: #ECEDF5;
-        --color-border-visible: #E2E4F0;
-        --color-border-hover: #CBCEE0;
-        --color-border-focus: #D92D20;
-        --focus-ring: rgba(217, 45, 32, 0.16);
+        --color-border: #DEE4E0;
+        --color-border-hover: #C8D2CC;
+        --color-border-focus: #176B52;
+        --focus-ring: rgba(23, 107, 82, 0.16);
 
-        --color-success: #12B76A;
-        --color-success-light: #ECFDF3;
-        --color-warning: #F79009;
-        --color-warning-light: #FFFAEB;
-        --color-danger: #D92D20;
-        --color-danger-light: #FEF3F2;
-        --color-info: #4457C9;
-        --color-info-light: #EEF0FC;
+        --color-success: #176B52;
+        --color-success-light: #E4F1EB;
+        --color-warning: #D97745;
+        --color-warning-light: #FFF1E8;
+        --color-danger: #C94A4A;
+        --color-danger-light: #FBEAEA;
+        --color-info: #69746E;
+        --color-info-light: #F0F2F1;
 
         --space-1: 4px;
         --space-2: 8px;
         --space-3: 12px;
         --space-4: 16px;
+        --space-5: 20px;
         --space-6: 24px;
         --space-8: 32px;
         --space-10: 40px;
         --space-12: 48px;
 
-        --radius-sm: 8px;
-        --radius-md: 12px;
-        --radius-lg: 18px;
+        /* --- Radius contenuto, non arrotondato --- */
+        --radius-sm: 7px;
+        --radius-md: 8px;
+        --radius-lg: 10px;
         --radius-pill: 999px;
 
-        --shadow-sm: 0 1px 3px rgba(68, 87, 201, 0.05);
-        --shadow-md: 0 8px 24px rgba(68, 87, 201, 0.08);
+        /* --- Niente ombre pesanti: il bordo fa il lavoro --- */
+        --shadow-sm: none;
     }
 
     .stApp { background-color: var(--color-bg); }
@@ -83,18 +79,35 @@ def apply_custom_theme():
     h1, h2, h3 {
         color: var(--color-title) !important;
         font-weight: 700 !important;
-        letter-spacing: -0.015em;
+        letter-spacing: -0.01em;
     }
-    h1 { font-size: 1.5rem !important; margin-bottom: 2px !important; line-height: 1.3; }
-    h2 { font-size: 1.02rem !important; margin-top: var(--space-6) !important; margin-bottom: var(--space-3) !important; color: var(--color-title) !important; font-weight: 700 !important; }
-    h3 { font-size: 0.9rem !important; margin-top: var(--space-3) !important; margin-bottom: var(--space-1) !important; color: var(--color-text) !important; font-weight: 600 !important; }
+    /* Il titolo di pagina deve avere più peso ("Panoramica" importante) */
+    h1 { font-size: 1.6rem !important; margin-bottom: 2px !important; line-height: 1.3; font-weight: 750 !important; }
+    h2 { font-size: 1rem !important; margin-top: var(--space-6) !important; margin-bottom: var(--space-2) !important; color: var(--color-title) !important; font-weight: 650 !important; }
+    h3 {
+        font-size: 0.92rem !important;
+        margin-top: var(--space-2) !important;
+        margin-bottom: 2px !important;
+        color: var(--color-title) !important;
+        font-weight: 600 !important;
+    }
 
     p, .stMarkdown, label { color: var(--color-text); font-size: 0.87rem; }
     .stCaption, [data-testid="stCaptionContainer"] { color: var(--color-text-secondary) !important; font-size: 0.78rem !important; }
 
-    .page-header p { color: var(--color-text-secondary); font-size: 0.87rem; margin-top: 0; margin-bottom: var(--space-4); }
+    /* Sottotitolo pagina: meno peso visivo del titolo */
+    .page-header p {
+        color: var(--color-text-secondary);
+        font-size: 0.86rem;
+        margin-top: 0;
+        margin-bottom: var(--space-5);
+        font-weight: 400;
+    }
 
-    /* ============== SIDEBAR — bianca, pulita, profilo in alto ============== */
+    .card-title { font-size: 0.95rem; font-weight: 600; color: var(--color-title); margin: 0; }
+    .card-description { font-size: 0.8rem; color: var(--color-text-secondary); margin: 2px 0 0 0; }
+
+    /* ============== SIDEBAR — bianca, professionale, gruppi ============== */
     [data-testid="stSidebar"] {
         background-color: var(--color-surface);
         border-right: 1px solid var(--color-border);
@@ -103,10 +116,10 @@ def apply_custom_theme():
 
     .sidebar-brand {
         padding: 0 var(--space-4) var(--space-3) var(--space-4);
-        font-weight: 800;
-        font-size: 1rem;
+        font-weight: 750;
+        font-size: 0.98rem;
         color: var(--color-title);
-        letter-spacing: -0.02em;
+        letter-spacing: -0.01em;
     }
 
     .sidebar-profile {
@@ -115,135 +128,130 @@ def apply_custom_theme():
         gap: var(--space-2);
         margin: 0 var(--space-3) var(--space-4) var(--space-3);
         padding: var(--space-3);
-        background-color: var(--color-bg);
+        background-color: var(--color-surface-secondary);
         border-radius: var(--radius-md);
     }
     .sidebar-profile-avatar {
-        width: 36px; height: 36px;
+        width: 34px; height: 34px;
         border-radius: 50%;
-        background-color: var(--color-accent);
+        background-color: var(--color-primary);
         color: #FFFFFF;
         display: flex; align-items: center; justify-content: center;
         font-weight: 700;
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         flex-shrink: 0;
     }
-    .sidebar-profile-name { font-weight: 650; font-size: 0.85rem; color: var(--color-title); line-height: 1.3; }
-    .sidebar-profile-role { font-size: 0.73rem; color: var(--color-text-secondary); }
+    .sidebar-profile-name { font-weight: 650; font-size: 0.84rem; color: var(--color-title); line-height: 1.3; }
+    .sidebar-profile-role { font-size: 0.72rem; color: var(--color-text-secondary); }
 
     .sidebar-divider { border-top: 1px solid var(--color-border); margin: var(--space-3) var(--space-3); }
 
     .sidebar-section-label {
-        font-size: 0.65rem;
+        font-size: 0.66rem;
         font-weight: 700;
         color: var(--color-text-disabled);
-        letter-spacing: 0.06em;
+        letter-spacing: 0.07em;
         text-transform: uppercase;
-        padding: var(--space-3) var(--space-3) 2px var(--space-4);
+        padding: var(--space-3) var(--space-3) 3px var(--space-4);
     }
 
     [data-testid="stSidebar"] [data-testid="stPageLink"] {
         border-radius: var(--radius-sm);
         margin: 1px var(--space-2);
-        padding: 5px var(--space-2);
-        transition: background-color 150ms ease;
+        padding: 6px var(--space-2) 6px 10px;
+        border-left: 3px solid transparent;
+        transition: background-color 150ms ease, border-color 150ms ease;
     }
     [data-testid="stSidebar"] [data-testid="stPageLink"]:hover { background-color: var(--color-bg); }
     [data-testid="stSidebar"] [data-testid="stPageLink"] p {
-        font-size: 0.86rem;
+        font-size: 0.85rem;
         font-weight: 500;
         color: var(--color-text-quiet);
     }
+    /* Elemento attivo: molto evidente, con indicatore laterale verde */
     [data-testid="stSidebar"] [aria-current="page"] {
-        background-color: var(--color-accent-light) !important;
+        background-color: var(--color-primary-light) !important;
+        border-left: 3px solid var(--color-primary) !important;
         border-radius: var(--radius-sm);
     }
     [data-testid="stSidebar"] [aria-current="page"] p {
-        color: var(--color-accent-dark) !important;
+        color: var(--color-primary-hover) !important;
         font-weight: 650;
     }
 
-    /* "Nuovo progetto": resta rosso pieno, è la vera CTA del brand */
-    .sidebar-cta-primary { margin: var(--space-1) var(--space-2) var(--space-3) var(--space-2); }
-    .sidebar-cta-primary [data-testid="stPageLink"] {
-        background-color: var(--color-primary) !important;
-        border-radius: var(--radius-md) !important;
-        margin: 0 !important;
-        padding: 8px var(--space-3) !important;
-        box-shadow: var(--shadow-sm);
-    }
-    .sidebar-cta-primary [data-testid="stPageLink"] p { color: #FFFFFF !important; font-weight: 650 !important; }
-    .sidebar-cta-primary [data-testid="stPageLink"]:hover { background-color: var(--color-primary-hover) !important; }
-
-    /* ============== BOTTONI ============== */
+    /* ============== BOTTONI — angoli contenuti, non a pillola ============== */
     button {
         border-radius: var(--radius-md) !important;
         min-height: 38px !important;
         height: 38px;
-        font-weight: 600 !important;
+        font-weight: 550 !important;
         font-size: 0.85rem;
-        transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
-        border: 1px solid var(--color-border-visible);
+        transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+        border: 1px solid var(--color-border);
         background-color: var(--color-surface);
         box-shadow: none !important;
     }
     button p, button div, button span { color: var(--color-text-quiet); }
-    button:hover { background-color: var(--color-bg); border-color: var(--color-border-hover); }
-    button:active { transform: scale(0.98); }
+    button:hover { background-color: var(--color-surface-secondary); border-color: var(--color-border-hover); }
     button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring) !important; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
 
     button[kind*="primary"] {
         background-color: var(--color-primary) !important;
         border-color: var(--color-primary) !important;
-        box-shadow: var(--shadow-sm) !important;
     }
-    button[kind*="primary"] p, button[kind*="primary"] div, button[kind*="primary"] span { color: #FFFFFF !important; font-weight: 650 !important; }
+    button[kind*="primary"] p, button[kind*="primary"] div, button[kind*="primary"] span { color: #FFFFFF !important; font-weight: 600 !important; }
     button[kind*="primary"]:hover { background-color: var(--color-primary-hover) !important; border-color: var(--color-primary-hover) !important; }
 
-    .btn-ghost button { border-color: transparent !important; background-color: transparent !important; box-shadow: none !important; }
-    .btn-ghost button:hover { background-color: var(--color-bg) !important; }
+    /* Ghost: azioni discrete dentro le card, mai grandi CTA */
+    .btn-ghost button { border-color: transparent !important; background-color: transparent !important; }
+    .btn-ghost button:hover { background-color: var(--color-surface-secondary) !important; }
 
     [data-testid="stDownloadButton"] button {
         background-color: var(--color-primary) !important;
         border-color: var(--color-primary) !important;
     }
-    [data-testid="stDownloadButton"] button p, [data-testid="stDownloadButton"] button div, [data-testid="stDownloadButton"] button span { color: #FFFFFF !important; font-weight: 650 !important; }
+    [data-testid="stDownloadButton"] button p, [data-testid="stDownloadButton"] button div, [data-testid="stDownloadButton"] button span { color: #FFFFFF !important; font-weight: 600 !important; }
     [data-testid="stDownloadButton"] button:hover { background-color: var(--color-primary-hover) !important; }
 
-    .cta-principale button { min-height: 42px !important; height: 42px; font-size: 0.9rem !important; }
-
-    /* ============== CARD — molto arrotondate, ombra soffusa colorata ============== */
+    /* ============== CARD — sobrie, bordo sottile, hover solo se cliccabile ============== */
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: var(--radius-lg) !important;
         border: 1px solid var(--color-border) !important;
         background-color: var(--color-surface);
         padding: var(--space-1);
-        box-shadow: var(--shadow-sm);
-        transition: box-shadow 150ms ease, border-color 150ms ease;
+        box-shadow: none !important;
+        transition: border-color 180ms ease, background-color 180ms ease;
     }
+    /* Hover discreto — vale per card che rappresentano elementi cliccabili (progetti, preventivi...) */
     [data-testid="stVerticalBlockBorderWrapper"]:hover {
-        box-shadow: var(--shadow-md);
         border-color: var(--color-border-hover) !important;
     }
 
     .row-actions { opacity: 1; }
+    .card-divider { border-top: 1px solid var(--color-border); margin: var(--space-3) 0; }
 
-    /* ============== METRICHE — card statistica, numero grande ============== */
+    /* ============== METRICHE / STAT CARD — compatte, numero grande ============== */
     [data-testid="stMetric"] {
         background-color: var(--color-surface);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
-        padding: var(--space-4);
-        box-shadow: var(--shadow-sm);
+        padding: var(--space-4) var(--space-5);
+        box-shadow: none;
     }
     [data-testid="stMetricValue"] {
         color: var(--color-title) !important;
         font-weight: 700 !important;
-        font-size: 1.7rem !important;
+        font-size: 1.85rem !important;
         font-variant-numeric: tabular-nums;
     }
-    [data-testid="stMetricLabel"] { color: var(--color-text-secondary) !important; font-size: 0.78rem !important; font-weight: 500; }
+    [data-testid="stMetricLabel"] {
+        color: var(--color-text-secondary) !important;
+        font-size: 0.72rem !important;
+        font-weight: 650 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
 
     .num-tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; text-align: right; display: inline-block; }
 
@@ -255,8 +263,8 @@ def apply_custom_theme():
     [data-testid="stTextArea"] textarea,
     [data-testid="stSelectbox"] div[data-baseweb="select"],
     [data-testid="stDateInput"] input {
-        border-radius: var(--radius-md) !important;
-        border: 1px solid var(--color-border-visible) !important;
+        border-radius: var(--radius-sm) !important;
+        border: 1px solid var(--color-border) !important;
         background-color: #FFFFFF !important;
         color: var(--color-title) !important;
         min-height: 38px;
@@ -276,7 +284,7 @@ def apply_custom_theme():
 
     label { font-size: 0.8rem !important; font-weight: 550 !important; color: var(--color-text-quiet) !important; margin-bottom: 3px !important; }
 
-    [data-baseweb="menu"] [aria-selected="true"] { background-color: var(--color-accent-light) !important; color: var(--color-accent-dark) !important; }
+    [data-baseweb="menu"] [aria-selected="true"] { background-color: var(--color-primary-light) !important; color: var(--color-primary-hover) !important; }
     [data-baseweb="menu"] li:hover { background-color: var(--color-bg) !important; }
 
     /* ============== EXPANDER ============== */
@@ -284,17 +292,17 @@ def apply_custom_theme():
         border-radius: var(--radius-lg) !important;
         border: 1px solid var(--color-border) !important;
         background-color: var(--color-surface);
-        box-shadow: var(--shadow-sm);
+        box-shadow: none;
     }
-    [data-testid="stExpander"] summary { font-size: 0.86rem; font-weight: 550; color: var(--color-text-quiet); }
+    [data-testid="stExpander"] summary { font-size: 0.85rem; font-weight: 550; color: var(--color-text-quiet); }
 
-    /* ============== TABELLE ============== */
+    /* ============== TABELLE — dense, header discreto ============== */
     .stMarkdown table { border-collapse: collapse; width: 100%; }
     .stMarkdown table thead th {
         background-color: transparent !important;
         color: var(--color-text-secondary) !important;
-        border-bottom: 1px solid var(--color-border-visible) !important;
-        font-size: 0.72rem;
+        border-bottom: 1px solid var(--color-border) !important;
+        font-size: 0.7rem;
         font-weight: 650;
         text-transform: uppercase;
         letter-spacing: 0.03em;
@@ -306,8 +314,8 @@ def apply_custom_theme():
     .stMarkdown table tbody td {
         background-color: transparent;
         border-bottom: 1px solid var(--color-border) !important;
-        padding: var(--space-3) var(--space-3) !important;
-        font-size: 0.85rem;
+        padding: var(--space-2) var(--space-3) !important;
+        font-size: 0.84rem;
         color: var(--color-text);
     }
     .stMarkdown table tbody tr:hover td { background-color: var(--color-bg); }
@@ -315,9 +323,9 @@ def apply_custom_theme():
     [data-testid="stDataFrame"] { border-radius: var(--radius-lg); border: 1px solid var(--color-border); }
 
     /* ============== TABS / DIALOG ============== */
-    [data-testid="stTabs"] button[role="tab"] { font-size: 0.85rem; font-weight: 550; }
-    [data-testid="stTabs"] button[aria-selected="true"] { color: var(--color-accent) !important; }
-    [data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: var(--color-accent) !important; }
+    [data-testid="stTabs"] button[role="tab"] { font-size: 0.84rem; font-weight: 550; }
+    [data-testid="stTabs"] button[aria-selected="true"] { color: var(--color-primary) !important; }
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: var(--color-primary) !important; }
 
     div[role="dialog"] { border-radius: var(--radius-lg) !important; }
 
@@ -331,32 +339,32 @@ def apply_custom_theme():
     a { color: var(--color-primary) !important; font-weight: 600; transition: color 150ms ease; }
     a:hover { color: var(--color-primary-hover) !important; }
 
-    /* ============== EMPTY STATE ============== */
-    .empty-state { text-align: center; padding: var(--space-12) var(--space-6); color: var(--color-text-secondary); }
-    .empty-state-icon { margin-bottom: var(--space-3); opacity: 0.7; color: var(--color-text-disabled); }
-    .empty-state-title { font-size: 1rem; font-weight: 650; color: var(--color-title); margin-bottom: 2px; }
-    .empty-state-description { font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: var(--space-4); max-width: 340px; margin-left: auto; margin-right: auto; }
+    /* ============== EMPTY STATE — minimale, elegante ============== */
+    .empty-state { text-align: center; padding: var(--space-10) var(--space-6); color: var(--color-text-secondary); }
+    .empty-state-icon { margin-bottom: var(--space-3); opacity: 0.55; color: var(--color-text-disabled); }
+    .empty-state-title { font-size: 0.95rem; font-weight: 650; color: var(--color-title); margin-bottom: 2px; }
+    .empty-state-description { font-size: 0.83rem; color: var(--color-text-secondary); margin-bottom: var(--space-4); max-width: 320px; margin-left: auto; margin-right: auto; }
     </style>
     """, unsafe_allow_html=True)
 
 
 def badge(testo, tipo="neutral"):
-    """Badge a pillola morbida — informativo (blu/lavanda) o semantico (successo/attenzione/errore)."""
+    """Badge sobrio a pillola — SOLO i badge sono pill, mai le card."""
     stili = {
-        "success":   ("#027A48", "#ECFDF3"),
-        "warning":   ("#B54708", "#FFFAEB"),
-        "danger":    ("#B42318", "#FEF3F2"),
-        "info":      ("#363F8C", "#EEF0FC"),
-        "bozza":     ("#4B4F54", "#F2F3F8"),
-        "inviato":   ("#363F8C", "#EEF0FC"),
-        "accettato": ("#027A48", "#ECFDF3"),
-        "rifiutato": ("#B42318", "#FEF3F2"),
-        "neutral":   ("#4B4F54", "#F2F3F8"),
+        "success":   ("#176B52", "#E4F1EB"),
+        "warning":   ("#B85E2D", "#FFF1E8"),
+        "danger":    ("#B33A3A", "#FBEAEA"),
+        "info":      ("#69746E", "#F0F2F1"),
+        "bozza":     ("#69746E", "#F0F2F1"),
+        "inviato":   ("#B85E2D", "#FFF1E8"),
+        "accettato": ("#176B52", "#E4F1EB"),
+        "rifiutato": ("#B33A3A", "#FBEAEA"),
+        "neutral":   ("#69746E", "#F0F2F1"),
     }
     colore_testo, colore_bg = stili.get(tipo, stili["neutral"])
     return (
         f"<span style='background-color:{colore_bg}; color:{colore_testo}; "
-        f"padding:3px 11px; border-radius:999px; font-size:0.74rem; font-weight:600; "
+        f"padding:3px 10px; border-radius:999px; font-size:0.72rem; font-weight:600; "
         f"display:inline-block;'>{testo}</span>"
     )
 
@@ -373,10 +381,21 @@ def stato_badge(stato):
 
 
 def formatta_numero_tabulare(testo):
-    """Avvolge un valore numerico/economico già formattato in una classe con font tabulare, allineato a destra."""
     return f"<span class='num-tabular'>{testo}</span>"
 
 
 def material_icon(nome, dimensione=20):
-    """Renderizza un'icona Material Symbols (linea pulita) al posto di un'emoji."""
     return f"<span class='material-icon' style='font-size:{dimensione}px;'>{nome}</span>"
+
+
+def card_header(titolo, descrizione=None):
+    """Intestazione coerente per l'inizio di una card: titolo + descrizione secondaria."""
+    html = f"<div class='card-title'>{titolo}</div>"
+    if descrizione:
+        html += f"<div class='card-description'>{descrizione}</div>"
+    return html
+
+
+def card_divider():
+    """Divider sottile da usare SOLO quando separa davvero header/contenuto/footer di una card."""
+    return "<div class='card-divider'></div>"
