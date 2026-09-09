@@ -1,6 +1,6 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, stato_badge, material_icon
+from services.theme import apply_custom_theme, stato_badge, material_icon, card_divider
 from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, trigger_download_automatico, dialog_dopo_generazione_preventivo, format_euro, slug
 
 
@@ -41,7 +41,7 @@ st.set_page_config(page_title="Preventivi", page_icon="📄")
 apply_custom_theme()
 
 st.markdown(
-    f"<div class='page-header'><h1>{material_icon('description')} Preventivi</h1>"
+    "<div class='page-header'><h1>Preventivi</h1>"
     "<p>Raggruppati per progetto, con lo storico delle versioni.</p></div>",
     unsafe_allow_html=True
 )
@@ -51,10 +51,16 @@ preventivi = supabase.table("preventivi").select(
 ).execute()
 
 if not preventivi.data:
-    st.info("Nessun preventivo salvato ancora.")
-    st.page_link("pages/3_Nuovo_Preventivo.py", label="Crea il primo preventivo →", icon=":material/payments:")
+    st.markdown(
+        "<div class='empty-state'>"
+        "<div class='empty-state-title'>Nessun preventivo ancora</div>"
+        "<div class='empty-state-description'>Crea il primo preventivo a partire da un progetto esistente.</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    st.page_link("pages/3_Nuovo_Preventivo.py", label="Nuovo preventivo", icon=":material/payments:")
 else:
-    ricerca = st.text_input(":material/search: Cerca per cliente o città")
+    ricerca = st.text_input("Cerca per cliente o città", placeholder="Cerca per cliente o città", label_visibility="collapsed")
 
     gruppi = {}
     for pv in preventivi.data:
@@ -68,7 +74,7 @@ else:
 
     almeno_uno_mostrato = False
 
-    for progetto_id_gruppo, lista_pv in gruppi_ordinati:
+    for i_gruppo, (progetto_id_gruppo, lista_pv) in enumerate(gruppi_ordinati):
         primo_pv = lista_pv[0]
         progetto_info = primo_pv.get("progetti") or {}
         clienti_info = progetto_info.get("clienti") or {}
@@ -81,36 +87,41 @@ else:
 
         almeno_uno_mostrato = True
 
-        st.markdown(f"### :material/folder: {nome_completo}")
-        st.caption(f":material/location_on: {indirizzo}, {citta} — {len(lista_pv)} preventivo/i")
+        if i_gruppo > 0:
+            st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
+
+        st.markdown(f"### {nome_completo}")
+        st.caption(f"{indirizzo}, {citta} — {len(lista_pv)} preventivo/i")
 
         totale_versioni = len(lista_pv)
 
-        for idx, pv in enumerate(reversed(lista_pv)):
-            numero_versione = totale_versioni - idx
+        with st.container(border=True):
+            for idx, pv in enumerate(reversed(lista_pv)):
+                numero_versione = totale_versioni - idx
 
-            with st.container(border=True):
                 col1, col2, col3 = st.columns([3, 1.4, 1.6])
                 with col1:
                     st.markdown(
-                        f"<div style='font-weight:600; color:var(--color-title); font-size:0.98rem;'>Preventivo #{numero_versione}</div>"
-                        f"<div style='color:var(--color-text-secondary); font-size:0.85rem;'>{formatta_data(pv['created_at'])}</div>",
+                        f"<span style='font-weight:600; color:var(--color-title); font-size:0.87rem;'>Preventivo #{numero_versione}</span><br>"
+                        f"<span style='color:var(--color-text-secondary); font-size:0.8rem;'>{formatta_data(pv['created_at'])}</span>",
                         unsafe_allow_html=True
                     )
                     if pv.get('email_inviata_a'):
-                        st.caption(f":material/mail: Inviato a {pv['email_inviata_a']}")
+                        st.caption(f"Inviato a {pv['email_inviata_a']}")
                 with col2:
                     st.markdown(
-                        f"<div style='color:var(--color-text-secondary); font-size:0.82rem;'>Totale</div>"
-                        f"<div style='color:var(--color-primary); font-weight:700; font-size:1.1rem;'>{format_euro(pv.get('totale_finale') or 0)}</div>",
+                        f"<span style='color:var(--color-text-secondary); font-size:0.78rem;'>Totale</span><br>"
+                        f"<span class='num-tabular' style='color:var(--color-title); font-weight:700; font-size:1rem;'>{format_euro(pv.get('totale_finale') or 0)}</span>",
                         unsafe_allow_html=True
                     )
                 with col3:
                     st.markdown(stato_badge(pv['stato']), unsafe_allow_html=True)
+                    st.markdown("<div class='btn-ghost'>", unsafe_allow_html=True)
                     if st.button("Cambia stato", key=f"stato_{pv['id']}", use_container_width=True):
                         dialog_cambia_stato(pv['id'], pv['stato'])
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-                with st.expander(":material/visibility: Vedi dettaglio"):
+                with st.expander("Vedi dettaglio"):
                     prezzi = supabase.table("preventivo_prezzi_tipologia").select("*").eq("preventivo_id", pv['id']).execute()
                     mappa_prezzi = {p['tipologia']: p['prezzo_mq'] for p in prezzi.data} if prezzi.data else {}
                     if prezzi.data:
@@ -163,10 +174,19 @@ else:
                                 pv['id'], pdf_buffer, contesto, clienti_info, nome_completo, indirizzo, citta
                             )
                     with col_elimina:
+                        st.markdown("<div class='btn-ghost'>", unsafe_allow_html=True)
                         if st.button("Elimina questo preventivo", icon=":material/delete:", key=f"elimina_pv_{pv['id']}", use_container_width=True):
                             conferma_eliminazione_preventivo(pv['id'], f"Preventivo #{numero_versione} di {nome_completo}")
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.divider()
+                if idx < totale_versioni - 1:
+                    st.markdown(card_divider(), unsafe_allow_html=True)
 
     if not almeno_uno_mostrato:
-        st.info("Nessun preventivo corrisponde alla ricerca.")
+        st.markdown(
+            "<div class='empty-state'>"
+            "<div class='empty-state-title'>Nessun risultato</div>"
+            "<div class='empty-state-description'>Nessun preventivo corrisponde alla ricerca.</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
