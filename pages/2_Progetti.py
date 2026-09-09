@@ -1,6 +1,6 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, material_icon
+from services.theme import apply_custom_theme, badge, card_divider, material_icon
 from services.pdf import genera_preventivo_rapido, trigger_download_automatico, dialog_dopo_generazione_preventivo
 import re
 
@@ -46,7 +46,7 @@ st.set_page_config(page_title="Progetti", page_icon="📁")
 apply_custom_theme()
 
 st.markdown(
-    f"<div class='page-header'><h1>{material_icon('folder')} Progetti</h1>"
+    f"<div class='page-header'><h1>Progetti</h1>"
     "<p>Riprendi un progetto o generane subito il preventivo.</p></div>",
     unsafe_allow_html=True
 )
@@ -54,44 +54,77 @@ st.markdown(
 progetti = supabase.table("progetti").select("*, clienti(nome, cognome_azienda, telefono, email)").order("created_at", desc=True).execute()
 
 if not progetti.data:
-    st.info("Nessun progetto salvato ancora.")
-    st.page_link("pages/1_Nuovo_Progetto.py", label="Crea il primo progetto →", icon=":material/note_add:")
+    st.markdown(
+        "<div class='empty-state'>"
+        "<div class='empty-state-title'>Nessun progetto ancora</div>"
+        "<div class='empty-state-description'>Crea il tuo primo progetto per iniziare a generare preventivi.</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    st.page_link("pages/1_Nuovo_Progetto.py", label="Nuovo progetto", icon=":material/note_add:")
 else:
-    ricerca = st.text_input(":material/search: Cerca per cliente o città")
+    ricerca = st.text_input("Cerca per cliente o città", placeholder="Cerca per cliente o città", label_visibility="collapsed")
 
+    st.markdown("<div class='spacer-sm'></div>", unsafe_allow_html=True)
+
+    progetti_filtrati = []
     for p in progetti.data:
         nome_completo = f"{p['clienti']['nome']} {p['clienti']['cognome_azienda']}"
-
         if ricerca and ricerca.lower() not in nome_completo.lower() and ricerca.lower() not in (p['citta'] or "").lower():
             continue
+        progetti_filtrati.append((p, nome_completo))
 
-        infissi = supabase.table("infissi").select("id, mq, quantita").eq("progetto_id", p['id']).execute()
-        num_infissi = len(infissi.data)
-        mq_totali = sum(i['mq'] * i['quantita'] for i in infissi.data) if infissi.data else 0
-
+    if not progetti_filtrati:
+        st.markdown(
+            "<div class='empty-state'>"
+            "<div class='empty-state-title'>Nessun risultato</div>"
+            "<div class='empty-state-description'>Nessun progetto corrisponde alla ricerca.</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+    else:
         with st.container(border=True):
-            col1, col2, col3, col4 = st.columns([3, 1.3, 1.5, 1])
-            with col1:
-                st.subheader(nome_completo)
-                st.caption(f":material/location_on: {p['indirizzo']}, {p['citta']}")
-                st.caption(f":material/door_sliding: {num_infissi} infissi — {mq_totali:.2f} m² totali — Stato: {p['stato']}")
-            with col2:
-                if st.button("Apri", icon=":material/arrow_forward:", key=f"apri_{p['id']}", use_container_width=True):
-                    st.session_state["progetto_corrente_id"] = p['id']
-                    st.session_state["progetto_corrente_nome"] = nome_completo
-                    st.switch_page("pages/5_Gestione_Progetto.py")
-            with col3:
-                if st.button("Preventivo", icon=":material/payments:", key=f"genera_{p['id']}", use_container_width=True):
-                    if num_infissi == 0:
-                        st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
-                    else:
-                        with st.spinner("Generazione preventivo e PDF in corso..."):
-                            preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(p['id'], p, p['clienti'])
-                        trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}.pdf")
-                        dialog_dopo_generazione_preventivo(
-                            preventivo_id, pdf_buffer, contesto, p['clienti'], nome_completo,
-                            p['indirizzo'], p['citta']
-                        )
-            with col4:
-                if st.button("", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True, help="Elimina"):
-                    conferma_eliminazione(p['id'], nome_completo)
+            for idx, (p, nome_completo) in enumerate(progetti_filtrati):
+                infissi = supabase.table("infissi").select("id, mq, quantita").eq("progetto_id", p['id']).execute()
+                num_infissi = len(infissi.data)
+                mq_totali = sum(i['mq'] * i['quantita'] for i in infissi.data) if infissi.data else 0
+
+                col1, col2, col3, col4 = st.columns([2.8, 1.6, 1.1, 1.8])
+                with col1:
+                    st.markdown(f"<span style='font-weight:600; color:var(--color-title); font-size:0.88rem;'>{nome_completo}</span>", unsafe_allow_html=True)
+                    st.markdown(f"<span style='color:var(--color-text-secondary); font-size:0.8rem;'>{p['indirizzo']}, {p['citta']}</span>", unsafe_allow_html=True)
+                with col2:
+                    st.markdown(
+                        f"<span style='color:var(--color-text); font-size:0.85rem;'>{num_infissi} infissi</span><br>"
+                        f"<span class='num-tabular' style='color:var(--color-text-secondary); font-size:0.8rem;'>{mq_totali:.2f} m²</span>",
+                        unsafe_allow_html=True
+                    )
+                with col3:
+                    st.markdown(badge((p.get('stato') or "—").capitalize(), "neutral"), unsafe_allow_html=True)
+                with col4:
+                    b1, b2, b3 = st.columns(3)
+                    with b1:
+                        if st.button("", icon=":material/arrow_forward:", key=f"apri_{p['id']}", use_container_width=True, help="Apri progetto"):
+                            st.session_state["progetto_corrente_id"] = p['id']
+                            st.session_state["progetto_corrente_nome"] = nome_completo
+                            st.switch_page("pages/5_Gestione_Progetto.py")
+                    with b2:
+                        if st.button("", icon=":material/payments:", key=f"genera_{p['id']}", use_container_width=True, help="Genera preventivo"):
+                            if num_infissi == 0:
+                                st.warning("Aggiungi almeno un infisso prima di generare il preventivo.")
+                            else:
+                                with st.spinner("Generazione preventivo e PDF in corso..."):
+                                    preventivo_id, pdf_buffer, contesto = genera_preventivo_rapido(p['id'], p, p['clienti'])
+                                trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}.pdf")
+                                dialog_dopo_generazione_preventivo(
+                                    preventivo_id, pdf_buffer, contesto, p['clienti'], nome_completo,
+                                    p['indirizzo'], p['citta']
+                                )
+                    with b3:
+                        st.markdown("<div class='btn-ghost'>", unsafe_allow_html=True)
+                        if st.button("", icon=":material/delete:", key=f"elimina_{p['id']}", use_container_width=True, help="Elimina"):
+                            conferma_eliminazione(p['id'], nome_completo)
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+                if idx < len(progetti_filtrati) - 1:
+                    st.markdown(card_divider(), unsafe_allow_html=True)
