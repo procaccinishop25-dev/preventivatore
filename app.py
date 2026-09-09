@@ -9,10 +9,10 @@ st.set_page_config(
 
 apply_custom_theme()
 
-pagina_home = st.Page("home.py", title="Home", icon=":material/home:", default=True)
+pagina_home = st.Page("home.py", title="Panoramica", icon=":material/dashboard:", default=True)
 pagina_nuovo_progetto = st.Page("pages/1_Nuovo_Progetto.py", title="Nuovo Progetto", icon=":material/note_add:")
 pagina_progetti = st.Page("pages/2_Progetti.py", title="Progetti", icon=":material/folder:")
-pagina_nuovo_preventivo = st.Page("pages/3_Nuovo_Preventivo.py", title="Nuovo Preventivo", icon=":material/request_quote:")
+pagina_nuovo_preventivo = st.Page("pages/3_Nuovo_Preventivo.py", title="Nuovo Preventivo", icon=":material/payments:")
 pagina_preventivi = st.Page("pages/4_Preventivi.py", title="Preventivi", icon=":material/description:")
 pagina_gestione_progetto = st.Page("pages/5_Gestione_Progetto.py", title="Gestione Progetto", icon=":material/door_sliding:")
 pagina_maggiorazioni = st.Page("pages/6_Maggiorazioni.py", title="Regole prezzo personalizzate", icon=":material/tune:")
@@ -43,19 +43,16 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    st.page_link(pagina_home, label="Home", icon=":material/home:")
-
-    st.markdown("<div class='sidebar-cta-primary'>", unsafe_allow_html=True)
-    st.page_link(pagina_nuovo_progetto, label="Nuovo progetto", icon=":material/add:")
-    st.markdown("</div>", unsafe_allow_html=True)
-
+    sidebar_section_label("Principale")
+    st.page_link(pagina_home, label="Panoramica", icon=":material/dashboard:")
+    st.page_link(pagina_nuovo_progetto, label="Nuovo progetto", icon=":material/note_add:")
     st.page_link(pagina_progetti, label="Progetti", icon=":material/folder:")
     st.page_link(pagina_preventivi, label="Preventivi", icon=":material/description:")
     st.page_link(pagina_ordini_fornitori, label="Ordini fornitori", icon=":material/local_shipping:")
 
     st.markdown("<div class='sidebar-divider'></div>", unsafe_allow_html=True)
 
-    sidebar_section_label("Impostazioni")
+    sidebar_section_label("Configurazione")
     st.page_link(pagina_catalogo, label="Catalogo", icon=":material/inventory_2:")
     st.page_link(pagina_maggiorazioni, label="Regole prezzo personalizzate", icon=":material/tune:")
 
