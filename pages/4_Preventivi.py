@@ -1,6 +1,7 @@
 import streamlit as st
 from services.supabase import supabase
-from services.theme import apply_custom_theme, stato_badge, material_icon, card_divider
+from services.theme import apply_custom_theme, card_divider
+from services.ui_components import page_toolbar, list_item
 from services.pdf import costruisci_contesto_pdf, genera_pdf_preventivo, trigger_download_automatico, dialog_dopo_generazione_preventivo, format_euro, slug
 
 
@@ -40,11 +41,13 @@ def conferma_eliminazione_preventivo(preventivo_id, descrizione):
 st.set_page_config(page_title="Preventivi", page_icon="📄")
 apply_custom_theme()
 
-st.markdown(
-    "<div class='page-header'><h1>Preventivi</h1>"
-    "<p>Raggruppati per progetto, con lo storico delle versioni.</p></div>",
-    unsafe_allow_html=True
+page_toolbar(
+    "Preventivi",
+    "Raggruppati per progetto, con lo storico delle versioni.",
+    cta_label="Nuovo preventivo", cta_icon="payments", cta_page="pages/3_Nuovo_Preventivo.py"
 )
+
+st.markdown("<div class='section-spacer'></div>", unsafe_allow_html=True)
 
 preventivi = supabase.table("preventivi").select(
     "*, progetti(indirizzo, citta, data_sopralluogo, operatore, clienti(nome, cognome_azienda, telefono, email))"
@@ -61,6 +64,8 @@ if not preventivi.data:
     st.page_link("pages/3_Nuovo_Preventivo.py", label="Nuovo preventivo", icon=":material/payments:")
 else:
     ricerca = st.text_input("Cerca per cliente o città", placeholder="Cerca per cliente o città", label_visibility="collapsed")
+
+    st.markdown("<div class='spacer-sm'></div>", unsafe_allow_html=True)
 
     gruppi = {}
     for pv in preventivi.data:
@@ -99,85 +104,86 @@ else:
             for idx, pv in enumerate(reversed(lista_pv)):
                 numero_versione = totale_versioni - idx
 
-                col1, col2, col3 = st.columns([3, 1.4, 1.6])
-                with col1:
-                    st.markdown(
-                        f"<span style='font-weight:600; color:var(--color-title); font-size:0.87rem;'>Preventivo #{numero_versione}</span><br>"
-                        f"<span style='color:var(--color-text-secondary); font-size:0.8rem;'>{formatta_data(pv['created_at'])}</span>",
-                        unsafe_allow_html=True
-                    )
-                    if pv.get('email_inviata_a'):
-                        st.caption(f"Inviato a {pv['email_inviata_a']}")
-                with col2:
-                    st.markdown(
-                        f"<span style='color:var(--color-text-secondary); font-size:0.78rem;'>Totale</span><br>"
-                        f"<span class='num-tabular' style='color:var(--color-title); font-weight:700; font-size:1rem;'>{format_euro(pv.get('totale_finale') or 0)}</span>",
-                        unsafe_allow_html=True
-                    )
-                with col3:
-                    st.markdown(stato_badge(pv['stato']), unsafe_allow_html=True)
-                    st.markdown("<div class='btn-ghost'>", unsafe_allow_html=True)
-                    if st.button("Cambia stato", key=f"stato_{pv['id']}", use_container_width=True):
-                        dialog_cambia_stato(pv['id'], pv['stato'])
-                    st.markdown("</div>", unsafe_allow_html=True)
+                # Dati necessari sia per il dettaglio che per il bottone "Genera PDF" nella riga
+                prezzi = supabase.table("preventivo_prezzi_tipologia").select("*").eq("preventivo_id", pv['id']).execute()
+                mappa_prezzi = {p['tipologia']: p['prezzo_mq'] for p in prezzi.data} if prezzi.data else {}
 
-                with st.expander("Vedi dettaglio"):
-                    prezzi = supabase.table("preventivo_prezzi_tipologia").select("*").eq("preventivo_id", pv['id']).execute()
-                    mappa_prezzi = {p['tipologia']: p['prezzo_mq'] for p in prezzi.data} if prezzi.data else {}
+                maggiorazioni_pv = supabase.table("preventivo_maggiorazioni").select(
+                    "*, maggiorazioni(descrizione, importo, tipo), infissi(nome)"
+                ).eq("preventivo_id", pv['id']).execute()
+
+                maggiorazioni_righe_pdf = []
+                for mg in (maggiorazioni_pv.data or []):
+                    descr = mg.get('maggiorazioni', {}).get('descrizione') if mg.get('maggiorazioni') else mg.get('descrizione_personalizzata')
+                    infisso_nome = mg.get('infissi', {}).get('nome') if mg.get('infissi') else None
+                    importo_magg = mg.get('maggiorazioni', {}).get('importo') if mg.get('maggiorazioni') else mg.get('importo_personalizzato')
+                    riferimento = f"su {infisso_nome}" if infisso_nome else "su tutti gli infissi"
+                    maggiorazioni_righe_pdf.append({
+                        "descrizione": f"{descr} ({riferimento})" if infisso_nome else descr,
+                        "importo": format_euro(importo_magg or 0)
+                    })
+
+                sottotitolo = f"{formatta_data(pv['created_at'])} · {format_euro(pv.get('totale_finale') or 0)}"
+                if pv.get('email_inviata_a'):
+                    sottotitolo += f" · Inviato a {pv['email_inviata_a']}"
+
+                risultato = list_item(
+                    titolo=f"Preventivo #{numero_versione}",
+                    sottotitolo=sottotitolo,
+                    stato_testo=pv['stato'].capitalize(),
+                    stato_tipo=pv['stato'],
+                    azione_primaria_label="Genera PDF",
+                    azione_primaria_icon="picture_as_pdf",
+                    key_primaria=f"genera_pdf_{pv['id']}",
+                    azione_secondaria_label="Cambia stato",
+                    azione_secondaria_icon="sync_alt",
+                    key_secondaria=f"stato_{pv['id']}",
+                    azioni_menu=[
+                        {"label": "Elimina", "icon": "delete", "key": f"elimina_pv_{pv['id']}", "danger": True}
+                    ],
+                )
+
+                if risultato["primaria"]:
+                    with st.spinner("Generazione PDF in corso..."):
+                        progetto_per_pdf = {**progetto_info, "id": pv['progetto_id']}
+                        contesto = costruisci_contesto_pdf(
+                            numero_preventivo=pv['id'][:8].upper(),
+                            data=formatta_data(pv['created_at']),
+                            progetto=progetto_per_pdf,
+                            cliente=clienti_info,
+                            prezzi_tipologia=mappa_prezzi,
+                            maggiorazioni_righe=maggiorazioni_righe_pdf,
+                            totale_base=pv.get('totale_base') or 0,
+                            sconto=pv.get('sconti') or 0,
+                            totale_finale=pv.get('totale_finale') or 0
+                        )
+                        pdf_buffer = genera_pdf_preventivo(contesto)
+                    trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}_v{numero_versione}.pdf")
+                    dialog_dopo_generazione_preventivo(
+                        pv['id'], pdf_buffer, contesto, clienti_info, nome_completo, indirizzo, citta
+                    )
+
+                if risultato["secondaria"]:
+                    dialog_cambia_stato(pv['id'], pv['stato'])
+
+                if risultato["menu"] == f"elimina_pv_{pv['id']}":
+                    conferma_eliminazione_preventivo(pv['id'], f"Preventivo #{numero_versione} di {nome_completo}")
+
+                with st.expander("Vedi dettaglio calcolo"):
                     if prezzi.data:
                         st.write("**Prezzi per tipologia:**")
                         for p in prezzi.data:
                             st.caption(f"• {p['tipologia']}: {format_euro(p['prezzo_mq'])}/m²")
 
-                    maggiorazioni_pv = supabase.table("preventivo_maggiorazioni").select(
-                        "*, maggiorazioni(descrizione, importo, tipo), infissi(nome)"
-                    ).eq("preventivo_id", pv['id']).execute()
-
-                    maggiorazioni_righe_pdf = []
                     if maggiorazioni_pv.data:
                         st.write("**Maggiorazioni applicate:**")
-                        for mg in maggiorazioni_pv.data:
-                            descr = mg.get('maggiorazioni', {}).get('descrizione') if mg.get('maggiorazioni') else mg.get('descrizione_personalizzata')
-                            infisso_nome = mg.get('infissi', {}).get('nome') if mg.get('infissi') else None
-                            importo_magg = mg.get('maggiorazioni', {}).get('importo') if mg.get('maggiorazioni') else mg.get('importo_personalizzato')
-                            riferimento = f"su {infisso_nome}" if infisso_nome else "su tutti gli infissi"
-                            st.caption(f"• {descr} ({riferimento})")
-                            maggiorazioni_righe_pdf.append({
-                                "descrizione": f"{descr} ({riferimento})" if infisso_nome else descr,
-                                "importo": format_euro(importo_magg or 0)
-                            })
+                        for riga in maggiorazioni_righe_pdf:
+                            st.caption(f"• {riga['descrizione']}")
 
                     st.write(f"**Totale base:** {format_euro(pv.get('totale_base') or 0)}")
                     if pv.get('sconti'):
                         st.write(f"**Sconto:** {format_euro(pv['sconti'])}")
                     st.write(f"**Totale finale:** {format_euro(pv.get('totale_finale') or 0)}")
-
-                    col_pdf, col_elimina = st.columns(2)
-                    with col_pdf:
-                        if st.button("Genera PDF", icon=":material/picture_as_pdf:", key=f"genera_pdf_{pv['id']}", use_container_width=True, type="primary"):
-                            with st.spinner("Generazione PDF in corso..."):
-                                progetto_per_pdf = {**progetto_info, "id": pv['progetto_id']}
-                                contesto = costruisci_contesto_pdf(
-                                    numero_preventivo=pv['id'][:8].upper(),
-                                    data=formatta_data(pv['created_at']),
-                                    progetto=progetto_per_pdf,
-                                    cliente=clienti_info,
-                                    prezzi_tipologia=mappa_prezzi,
-                                    maggiorazioni_righe=maggiorazioni_righe_pdf,
-                                    totale_base=pv.get('totale_base') or 0,
-                                    sconto=pv.get('sconti') or 0,
-                                    totale_finale=pv.get('totale_finale') or 0
-                                )
-                                pdf_buffer = genera_pdf_preventivo(contesto)
-                            trigger_download_automatico(pdf_buffer.getvalue(), f"preventivo_{slug(nome_completo)}_v{numero_versione}.pdf")
-                            dialog_dopo_generazione_preventivo(
-                                pv['id'], pdf_buffer, contesto, clienti_info, nome_completo, indirizzo, citta
-                            )
-                    with col_elimina:
-                        st.markdown("<div class='btn-ghost'>", unsafe_allow_html=True)
-                        if st.button("Elimina questo preventivo", icon=":material/delete:", key=f"elimina_pv_{pv['id']}", use_container_width=True):
-                            conferma_eliminazione_preventivo(pv['id'], f"Preventivo #{numero_versione} di {nome_completo}")
-                        st.markdown("</div>", unsafe_allow_html=True)
 
                 if idx < totale_versioni - 1:
                     st.markdown(card_divider(), unsafe_allow_html=True)
