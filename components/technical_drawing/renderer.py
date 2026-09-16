@@ -24,7 +24,7 @@ def genera_finestra(larghezza_mm, altezza_mm, configurazione_ante, larghezza_dis
     # 1. Telaio: fascia piena esterna (struttura fissa)
     contenuto_svg += elements.fascia_profilo(telaio, area_interna_telaio, elements.PALETTE["telaio"])
 
-    # 2. Ogni anta: fascia propria, battuta, vetro, simbolo apertura secondo la propria configurazione
+    # 2. Ogni anta: fascia propria, battuta, vetro, simbolo apertura, maniglia
     for anta, configurazione_anta in zip(ante, configurazione_ante):
         battuta = geometry.calcola_battuta_anta(anta)
         vetro = geometry.calcola_vetro(battuta)
@@ -36,6 +36,9 @@ def genera_finestra(larghezza_mm, altezza_mm, configurazione_ante, larghezza_dis
             fill=elements.PALETTE["vetro_fill"]
         )
         contenuto_svg += elements.simbolo_apertura(battuta, configurazione_anta)
+
+        if configurazione_anta.get("tipo") == "apribile":
+            contenuto_svg += elements.disegna_maniglia(battuta, configurazione_anta.get("apertura", "destra"))
 
     # 3. Montanti: colore del telaio, per leggerli come elemento strutturale fisso
     for montante in montanti:
