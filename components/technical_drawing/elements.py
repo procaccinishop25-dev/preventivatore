@@ -6,13 +6,16 @@ funzione qui fa calcoli geometrici, solo disegno."""
 PALETTE = {
     "telaio": "#20241F",         # struttura fissa, scuro
     "anta": "#8A9089",           # struttura mobile, grigio medio
+    "battuta": "#C7CBC5",        # linea sottile di battuta, tono neutro discreto
+    "fermavetro": "#AEB4A9",     # fascia fermavetro, variante più chiara del colore anta
     "vetro_fill": "#D7EAF5",     # vetro, azzurro chiaro
     "vetro_stroke": "#A9CDE0",
     "quota": "#6B7570",
     "sfondo": "#FFFFFF",
 }
 
-SPESSORE_PROFILO_STROKE = 1      # bordo sottile sulle fasce piene di telaio/anta
+SPESSORE_PROFILO_STROKE = 1      # bordo sottile sulle fasce piene di telaio/anta/fermavetro
+SPESSORE_BATTUTA_STROKE = 1      # spessore della linea sottile di battuta
 SPESSORE_VETRO_STROKE = 1
 SPESSORE_QUOTA = 1.2
 SPESSORE_SIMBOLO_APERTURA = 1.4
@@ -51,9 +54,9 @@ def testo(x, y, contenuto, dimensione=28, ancoraggio="middle", rotazione=0, colo
 
 
 def fascia_profilo(rettangolo_esterno, rettangolo_interno, colore):
-    """Disegna un profilo (telaio o anta) come vera fascia piena: rettangolo esterno
-    colorato + rettangolo interno 'svuotato' in bianco sopra — rappresentazione
-    standard dello spessore di un profilo in vista frontale tecnica."""
+    """Disegna un profilo (telaio, anta o fermavetro) come vera fascia piena:
+    rettangolo esterno colorato + rettangolo interno 'svuotato' in bianco sopra —
+    rappresentazione standard dello spessore di un profilo in vista frontale tecnica."""
     svg = rettangolo(
         rettangolo_esterno["x"], rettangolo_esterno["y"],
         rettangolo_esterno["larghezza"], rettangolo_esterno["altezza"],
@@ -65,6 +68,17 @@ def fascia_profilo(rettangolo_esterno, rettangolo_interno, colore):
         colore, SPESSORE_PROFILO_STROKE, fill=PALETTE["sfondo"]
     )
     return svg
+
+
+def linea_battuta(rettangolo_battuta):
+    """Disegna la zona di battuta come sottile contorno (nessun riempimento) —
+    si legge come una linea di giunzione/fessura, distinta dalle fasce piene
+    di anta e fermavetro che la circondano."""
+    return rettangolo(
+        rettangolo_battuta["x"], rettangolo_battuta["y"],
+        rettangolo_battuta["larghezza"], rettangolo_battuta["altezza"],
+        PALETTE["battuta"], SPESSORE_BATTUTA_STROKE, fill="none"
+    )
 
 
 def _tacca_45(x, y, verso_x=1, verso_y=-1):
