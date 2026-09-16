@@ -24,19 +24,28 @@ def genera_finestra(larghezza_mm, altezza_mm, configurazione_ante, larghezza_dis
     # 1. Telaio: fascia piena esterna (struttura fissa)
     contenuto_svg += elements.fascia_profilo(telaio, area_interna_telaio, elements.PALETTE["telaio"])
 
-    # 2. Ogni anta: fascia propria, battuta, vetro, simbolo apertura, maniglia
+    # 2. Ogni anta: fascia propria, battuta, fermavetro, vetro, simbolo apertura, maniglia
     for anta, configurazione_anta in zip(ante, configurazione_ante):
         battuta = geometry.calcola_battuta_anta(anta)
-        vetro = geometry.calcola_vetro(battuta)
+        zona_fermavetro = geometry.calcola_zona_fermavetro(battuta)
+        vetro = geometry.calcola_vetro(zona_fermavetro)
 
+        # 2a. Fascia anta (esterno anta -> confine battuta)
         contenuto_svg += elements.fascia_profilo(anta, battuta, elements.PALETTE["anta"])
+        # 2b. Linea di battuta (contorno sottile, nessun riempimento)
+        contenuto_svg += elements.linea_battuta(battuta)
+        # 2c. Fascia fermavetro (confine battuta -> confine vetro)
+        contenuto_svg += elements.fascia_profilo(zona_fermavetro, vetro, elements.PALETTE["fermavetro"])
+        # 2d. Vetro
         contenuto_svg += elements.rettangolo(
             vetro["x"], vetro["y"], vetro["larghezza"], vetro["altezza"],
             elements.PALETTE["vetro_stroke"], elements.SPESSORE_VETRO_STROKE,
             fill=elements.PALETTE["vetro_fill"]
         )
+        # 2e. Simbolo apertura (sulla battuta, come già in precedenza)
         contenuto_svg += elements.simbolo_apertura(battuta, configurazione_anta)
 
+        # 2f. Maniglia
         if configurazione_anta.get("tipo") == "apribile":
             contenuto_svg += elements.disegna_maniglia(battuta, configurazione_anta.get("apertura", "destra"))
 
