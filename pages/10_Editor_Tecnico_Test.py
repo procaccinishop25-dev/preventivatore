@@ -21,10 +21,31 @@ with col_config:
         larghezza_mm = st.number_input("Larghezza infisso (mm)", min_value=400, max_value=4000, value=1200, step=10)
         altezza_mm = st.number_input("Altezza infisso (mm)", min_value=400, max_value=4000, value=1500, step=10)
         numero_ante = st.selectbox("Numero ante", [1, 2, 3, 4], index=1)
-        apertura = st.selectbox("Apertura", ["Fissa", "Sinistra", "Destra"], index=2)
+
+        st.markdown("---")
+        st.markdown("##### Configurazione ante")
+
+        configurazione_ante = []
+        for i in range(1, numero_ante + 1):
+            col_tipo, col_apertura = st.columns(2)
+            with col_tipo:
+                tipo_label = st.selectbox(
+                    f"Anta {i} — Tipo", ["Fissa", "Apribile"],
+                    index=1, key=f"tipo_anta_{i}"
+                )
+
+            if tipo_label == "Apribile":
+                with col_apertura:
+                    apertura_label = st.selectbox(
+                        f"Anta {i} — Apertura", ["Sinistra", "Destra"],
+                        index=1, key=f"apertura_anta_{i}"
+                    )
+                configurazione_ante.append({"tipo": "apribile", "apertura": apertura_label.lower()})
+            else:
+                configurazione_ante.append({"tipo": "fissa"})
 
 with col_anteprima:
     with st.container(border=True):
         st.markdown("#### Anteprima disegno tecnico")
-        svg = genera_finestra(larghezza_mm, altezza_mm, numero_ante, apertura)
+        svg = genera_finestra(larghezza_mm, altezza_mm, configurazione_ante)
         st.markdown(svg, unsafe_allow_html=True)
