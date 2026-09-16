@@ -19,10 +19,12 @@ pagina_maggiorazioni = st.Page("pages/6_Maggiorazioni.py", title="Regole prezzo 
 pagina_catalogo = st.Page("pages/7_Catalogo.py", title="Catalogo", icon=":material/inventory_2:")
 pagina_editor_schizzo = st.Page("pages/8_Editor_Schizzo.py", title="Editor Schizzo", icon=":material/draw:")
 pagina_ordini_fornitori = st.Page("pages/9_Ordini_Fornitori.py", title="Ordini fornitori", icon=":material/local_shipping:")
+pagina_editor_tecnico_test = st.Page("pages/10_Editor_Tecnico_Test.py", title="Editor Tecnico (Test)", icon=":material/architecture:")
 
 navigazione = st.navigation(
     [pagina_home, pagina_nuovo_progetto, pagina_progetti, pagina_nuovo_preventivo, pagina_preventivi,
-     pagina_gestione_progetto, pagina_maggiorazioni, pagina_catalogo, pagina_editor_schizzo, pagina_ordini_fornitori],
+     pagina_gestione_progetto, pagina_maggiorazioni, pagina_catalogo, pagina_editor_schizzo,
+     pagina_ordini_fornitori, pagina_editor_tecnico_test],
     position="hidden"
 )
 
@@ -55,5 +57,10 @@ with st.sidebar:
     sidebar_section_label("Configurazione")
     st.page_link(pagina_catalogo, label="Catalogo", icon=":material/inventory_2:")
     st.page_link(pagina_maggiorazioni, label="Regole prezzo personalizzate", icon=":material/tune:")
+
+    st.markdown("<div class='sidebar-divider'></div>", unsafe_allow_html=True)
+
+    sidebar_section_label("Test")
+    st.page_link(pagina_editor_tecnico_test, label="Editor Tecnico (Test)", icon=":material/architecture:")
 
 navigazione.run()
