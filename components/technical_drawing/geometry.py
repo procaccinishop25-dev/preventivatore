@@ -98,11 +98,25 @@ def calcola_vetro(battuta):
     return _inset(battuta, GLAZING_BEAD_MM)
 
 
-def normalizza_configurazione_ante(numero_ante, apertura_globale):
-    """Prepara una configurazione di apertura per singola anta.
+def normalizza_configurazione_ante(numero_ante, configurazione):
+    """Restituisce sempre una lista di dizionari, uno per anta, nel formato:
+    {"tipo": "fissa"} oppure {"tipo": "apribile", "apertura": "sinistra"/"destra"}.
 
-    Oggi restituisce semplicemente la stessa apertura ripetuta per ogni anta —
-    la UI espone ancora un solo parametro globale. La funzione esiste già con
-    questa firma in modo che in futuro possa accettare (o restituire) aperture
-    diverse per ciascuna anta senza dover cambiare le funzioni che la consumano."""
-    return [apertura_globale] * numero_ante
+    Accetta due formati in ingresso:
+
+    - Nuovo formato (preferito): `configurazione` è già una lista di dizionari
+      in questo formato — viene restituita così com'è.
+    - Vecchio formato (retrocompatibilità): `configurazione` è una singola
+      stringa globale ("Fissa", "Sinistra", "Destra", case-insensitive) —
+      viene convertita e ripetuta per `numero_ante` volte, riproducendo
+      esattamente il comportamento della versione precedente del motore."""
+    if isinstance(configurazione, list):
+        return configurazione
+
+    valore = (configurazione or "").strip().lower()
+    if valore in ("", "fissa"):
+        singola = {"tipo": "fissa"}
+    else:
+        singola = {"tipo": "apribile", "apertura": valore}
+
+    return [dict(singola) for _ in range(numero_ante)]
