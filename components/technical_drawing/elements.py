@@ -2,15 +2,22 @@
 Ogni funzione restituisce una stringa SVG pronta da concatenare — nessuna
 funzione qui fa calcoli geometrici, solo disegno."""
 
-COLORE_TELAIO = "#1A1D1B"
-COLORE_ANTA = "#3D453F"
-COLORE_VETRO_FILL = "#D6EAF8"
-COLORE_VETRO_STROKE = "#A9CCE3"
-COLORE_QUOTA = "#69746E"
+# --- Palette centralizzata: unico punto da modificare per cambiare i colori ---
+PALETTE = {
+    "telaio": "#20241F",         # struttura fissa, scuro
+    "anta": "#8A9089",           # struttura mobile, grigio medio
+    "vetro_fill": "#D7EAF5",     # vetro, azzurro chiaro
+    "vetro_stroke": "#A9CDE0",
+    "quota": "#6B7570",
+    "sfondo": "#FFFFFF",
+}
 
-SPESSORE_TELAIO = 4
-SPESSORE_ANTA = 2
-SPESSORE_QUOTA = 1
+SPESSORE_PROFILO_STROKE = 1      # bordo sottile sulle fasce piene di telaio/anta
+SPESSORE_VETRO_STROKE = 1
+SPESSORE_QUOTA = 1.2
+SPESSORE_SIMBOLO_APERTURA = 1.4
+
+LUNGHEZZA_TACCA_MM = 16
 
 
 def rettangolo(x, y, larghezza, altezza, stroke, stroke_width, fill="none"):
@@ -20,52 +27,87 @@ def rettangolo(x, y, larghezza, altezza, stroke, stroke_width, fill="none"):
     )
 
 
-def linea(x1, y1, x2, y2, stroke, stroke_width):
-    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{stroke_width}" />'
+def linea(x1, y1, x2, y2, stroke, stroke_width, tratteggiata=False):
+    dash = ' stroke-dasharray="7,6"' if tratteggiata else ""
+    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{stroke_width}"{dash} />'
 
 
-def testo(x, y, contenuto, dimensione=28, ancoraggio="middle", rotazione=0):
+def testo(x, y, contenuto, dimensione=28, ancoraggio="middle", rotazione=0, colore=None):
+    colore = colore or PALETTE["quota"]
     trasformazione = f' transform="rotate({rotazione} {x} {y})"' if rotazione else ""
     return (
-        f'<text x="{x}" y="{y}" font-size="{dimensione}" fill="{COLORE_QUOTA}" '
+        f'<text x="{x}" y="{y}" font-size="{dimensione}" fill="{colore}" '
         f'text-anchor="{ancoraggio}" font-family="Inter, sans-serif"{trasformazione}>{contenuto}</text>'
     )
 
 
+def fascia_profilo(rettangolo_esterno, rettangolo_interno, colore):
+    """Disegna un profilo (telaio o anta) come vera fascia piena: rettangolo esterno
+    colorato + rettangolo interno 'svuotato' in bianco sopra — rappresentazione
+    standard dello spessore di un profilo in vista frontale tecnica."""
+    svg = rettangolo(
+        rettangolo_esterno["x"], rettangolo_esterno["y"],
+        rettangolo_esterno["larghezza"], rettangolo_esterno["altezza"],
+        colore, SPESSORE_PROFILO_STROKE, fill=colore
+    )
+    svg += rettangolo(
+        rettangolo_interno["x"], rettangolo_interno["y"],
+        rettangolo_interno["larghezza"], rettangolo_interno["altezza"],
+        colore, SPESSORE_PROFILO_STROKE, fill=PALETTE["sfondo"]
+    )
+    return svg
+
+
+def _tacca_45(x, y, verso_x=1, verso_y=-1):
+    """Piccola tacca inclinata a 45° centrata su (x, y) — convenzione tecnica
+    per l'estremità di una linea di quota, al posto di un trattino perpendicolare."""
+    meta = LUNGHEZZA_TACCA_MM / 2 * 0.7071
+    return linea(
+        x - meta * verso_x, y - meta * verso_y,
+        x + meta * verso_x, y + meta * verso_y,
+        PALETTE["quota"], SPESSORE_QUOTA
+    )
+
+
 def quota_orizzontale(x_inizio, x_fine, y_quota, y_oggetto, etichetta):
-    """Linea di quota orizzontale con tratti di richiamo dall'oggetto e testo centrato."""
+    """Linea di quota orizzontale, separata dal disegno, con tacche a 45° e testo centrato."""
     svg = ""
-    svg += linea(x_inizio, y_oggetto, x_inizio, y_quota + 15, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_fine, y_oggetto, x_fine, y_quota + 15, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_inizio, y_quota, x_fine, y_quota, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_inizio, y_quota - 8, x_inizio, y_quota + 8, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_fine, y_quota - 8, x_fine, y_quota + 8, COLORE_QUOTA, SPESSORE_QUOTA)
+    svg += linea(x_inizio, y_oggetto, x_inizio, y_quota, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += linea(x_fine, y_oggetto, x_fine, y_quota, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += linea(x_inizio, y_quota, x_fine, y_quota, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += _tacca_45(x_inizio, y_quota)
+    svg += _tacca_45(x_fine, y_quota)
     x_centro = (x_inizio + x_fine) / 2
-    svg += testo(x_centro, y_quota + 32, etichetta)
+    larghezza_etichetta = 8 * len(etichetta) + 16
+    svg += rettangolo(x_centro - larghezza_etichetta / 2, y_quota - 20, larghezza_etichetta, 30, "none", 0, fill=PALETTE["sfondo"])
+    svg += testo(x_centro, y_quota + 3, etichetta)
     return svg
 
 
 def quota_verticale(y_inizio, y_fine, x_quota, x_oggetto, etichetta):
-    """Linea di quota verticale con tratti di richiamo dall'oggetto e testo ruotato."""
+    """Linea di quota verticale, separata dal disegno, con tacche a 45° e testo ruotato centrato."""
     svg = ""
-    svg += linea(x_oggetto, y_inizio, x_quota - 15, y_inizio, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_oggetto, y_fine, x_quota - 15, y_fine, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_quota, y_inizio, x_quota, y_fine, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_quota - 8, y_inizio, x_quota + 8, y_inizio, COLORE_QUOTA, SPESSORE_QUOTA)
-    svg += linea(x_quota - 8, y_fine, x_quota + 8, y_fine, COLORE_QUOTA, SPESSORE_QUOTA)
+    svg += linea(x_oggetto, y_inizio, x_quota, y_inizio, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += linea(x_oggetto, y_fine, x_quota, y_fine, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += linea(x_quota, y_inizio, x_quota, y_fine, PALETTE["quota"], SPESSORE_QUOTA)
+    svg += _tacca_45(x_quota, y_inizio)
+    svg += _tacca_45(x_quota, y_fine)
     y_centro = (y_inizio + y_fine) / 2
-    svg += testo(x_quota - 30, y_centro, etichetta, rotazione=-90)
+    larghezza_etichetta = 8 * len(etichetta) + 16
+    svg += rettangolo(x_quota - 15, y_centro - larghezza_etichetta / 2, 30, larghezza_etichetta, "none", 0, fill=PALETTE["sfondo"])
+    svg += testo(x_quota, y_centro, etichetta, rotazione=-90)
     return svg
 
 
-def simbolo_apertura(anta, direzione):
-    """Simbolo standard di apertura: due linee convergenti verso il lato della cerniera.
+def simbolo_apertura(rettangolo_riferimento, direzione):
+    """Simbolo tecnico di apertura: linee sottili tratteggiate convergenti verso il
+    lato della cerniera — solo indicativo, non una linea costruttiva reale.
     Nessun simbolo se l'apertura è 'Fissa'."""
     if direzione == "Fissa":
         return ""
 
-    x, y = anta["x"], anta["y"]
-    larghezza, altezza = anta["larghezza"], anta["altezza"]
+    x, y = rettangolo_riferimento["x"], rettangolo_riferimento["y"]
+    larghezza, altezza = rettangolo_riferimento["larghezza"], rettangolo_riferimento["altezza"]
 
     if direzione == "Destra":
         apice = (x + larghezza, y + altezza / 2)
@@ -77,6 +119,6 @@ def simbolo_apertura(anta, direzione):
         angolo2 = (x + larghezza, y + altezza)
 
     svg = ""
-    svg += linea(angolo1[0], angolo1[1], apice[0], apice[1], COLORE_ANTA, SPESSORE_ANTA)
-    svg += linea(angolo2[0], angolo2[1], apice[0], apice[1], COLORE_ANTA, SPESSORE_ANTA)
+    svg += linea(angolo1[0], angolo1[1], apice[0], apice[1], PALETTE["anta"], SPESSORE_SIMBOLO_APERTURA, tratteggiata=True)
+    svg += linea(angolo2[0], angolo2[1], apice[0], apice[1], PALETTE["anta"], SPESSORE_SIMBOLO_APERTURA, tratteggiata=True)
     return svg
