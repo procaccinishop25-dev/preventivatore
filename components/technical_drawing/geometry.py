@@ -4,7 +4,13 @@ Nessuna funzione qui produce grafica: solo numeri e rettangoli logici."""
 
 FRAME_THICKNESS_MM = 60      # spessore della fascia del telaio esterno
 SASH_THICKNESS_MM = 50       # spessore della fascia propria dell'anta (profilo mobile)
-GLAZING_BEAD_MM = 15         # fermavetro: spazio tra la battuta dell'anta e il vetro visibile
+
+# --- Battuta: parametro iniziale del modello grafico, non una misura costruttiva
+# universale. Rappresenta simbolicamente la zona di tenuta/incastro tra anta e
+# fermavetro — pensata per essere ritoccata facilmente in futuro. ---
+BATTUTA_MM = 8
+
+GLAZING_BEAD_MM = 15         # spessore della fascia del fermavetro, ora effettivamente disegnata
 MULLION_THICKNESS_MM = 40
 
 MARGIN_LEFT_MM = 160
@@ -89,13 +95,20 @@ def calcola_montanti(telaio, ante):
 
 
 def calcola_battuta_anta(anta):
-    """Rettangolo interno dell'anta, dopo il proprio profilo (spessore SASH_THICKNESS_MM)."""
+    """Rettangolo interno dell'anta, dopo il proprio profilo (spessore SASH_THICKNESS_MM).
+    Rappresenta il confine tra la fascia dell'anta e la zona di battuta."""
     return _inset(anta, SASH_THICKNESS_MM)
 
 
-def calcola_vetro(battuta):
-    """Rettangolo del vetro visibile, dopo il fermavetro rispetto alla battuta dell'anta."""
-    return _inset(battuta, GLAZING_BEAD_MM)
+def calcola_zona_fermavetro(battuta):
+    """Rettangolo interno alla battuta, dopo la zona di battuta (spessore BATTUTA_MM).
+    Rappresenta il confine dove inizia la fascia del fermavetro."""
+    return _inset(battuta, BATTUTA_MM)
+
+
+def calcola_vetro(zona_fermavetro):
+    """Rettangolo del vetro visibile, dopo il fermavetro rispetto alla zona di fermavetro."""
+    return _inset(zona_fermavetro, GLAZING_BEAD_MM)
 
 
 def normalizza_configurazione_ante(numero_ante, configurazione):
