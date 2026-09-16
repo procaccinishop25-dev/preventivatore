@@ -19,12 +19,21 @@ SPESSORE_SIMBOLO_APERTURA = 1.4
 
 LUNGHEZZA_TACCA_MM = 16
 
+# --- Maniglia: dimensioni in mm, coerenti con le altre costanti geometriche del modulo ---
+HANDLE_LENGTH_MM = 70
+HANDLE_WIDTH_MM = 18
+HANDLE_PIVOT_RADIUS_MM = 9
+
 
 def rettangolo(x, y, larghezza, altezza, stroke, stroke_width, fill="none"):
     return (
         f'<rect x="{x}" y="{y}" width="{larghezza}" height="{altezza}" '
         f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />'
     )
+
+
+def cerchio(cx, cy, raggio, stroke, stroke_width, fill="none"):
+    return f'<circle cx="{cx}" cy="{cy}" r="{raggio}" fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />'
 
 
 def linea(x1, y1, x2, y2, stroke, stroke_width, tratteggiata=False):
@@ -124,4 +133,39 @@ def simbolo_apertura(rettangolo_riferimento, configurazione_anta):
     svg = ""
     svg += linea(angolo1[0], angolo1[1], apice[0], apice[1], PALETTE["anta"], SPESSORE_SIMBOLO_APERTURA, tratteggiata=True)
     svg += linea(angolo2[0], angolo2[1], apice[0], apice[1], PALETTE["anta"], SPESSORE_SIMBOLO_APERTURA, tratteggiata=True)
+    return svg
+
+
+def disegna_maniglia(anta, apertura):
+    """Disegna una maniglia tecnica (leva + perno) sul bordo verticale dell'anta
+    indicato da `apertura`. La posizione è calcolata interamente a partire dal
+    rettangolo `anta` (x, y, larghezza, altezza) — nessuna coordinata assoluta
+    hardcoded — quindi resta corretta al variare di larghezza, altezza, numero
+    di ante e apertura. Nessuna maniglia se `apertura` non è "sinistra"/"destra"
+    (es. ante fisse, per cui il chiamante comunque non dovrebbe invocarla)."""
+    if apertura not in ("sinistra", "destra"):
+        return ""
+
+    y_centro = anta["y"] + anta["altezza"] / 2
+
+    if apertura == "sinistra":
+        x_bordo = anta["x"]
+        x_leva_fine = x_bordo + HANDLE_LENGTH_MM
+    else:  # destra
+        x_bordo = anta["x"] + anta["larghezza"]
+        x_leva_fine = x_bordo - HANDLE_LENGTH_MM
+
+    svg = ""
+    # Leva: piccola barra che protrude dal bordo verso l'interno dell'anta
+    svg += rettangolo(
+        min(x_bordo, x_leva_fine), y_centro - HANDLE_WIDTH_MM / 2,
+        HANDLE_LENGTH_MM, HANDLE_WIDTH_MM,
+        PALETTE["anta"], SPESSORE_PROFILO_STROKE, fill=PALETTE["anta"]
+    )
+    # Perno: punto di fissaggio sul bordo dell'anta
+    svg += cerchio(
+        x_bordo, y_centro, HANDLE_PIVOT_RADIUS_MM,
+        PALETTE["anta"], SPESSORE_PROFILO_STROKE, fill=PALETTE["sfondo"]
+    )
+
     return svg
