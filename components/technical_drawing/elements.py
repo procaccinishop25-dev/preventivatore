@@ -99,21 +99,24 @@ def quota_verticale(y_inizio, y_fine, x_quota, x_oggetto, etichetta):
     return svg
 
 
-def simbolo_apertura(rettangolo_riferimento, direzione):
-    """Simbolo tecnico di apertura: linee sottili tratteggiate convergenti verso il
-    lato della cerniera — solo indicativo, non una linea costruttiva reale.
-    Nessun simbolo se l'apertura è 'Fissa'."""
-    if direzione == "Fissa":
+def simbolo_apertura(rettangolo_riferimento, configurazione_anta):
+    """Simbolo tecnico di apertura, letto da una configurazione per singola anta:
+    {"tipo": "fissa"} oppure {"tipo": "apribile", "apertura": "sinistra"/"destra"}.
+    Linee sottili tratteggiate convergenti verso il lato della cerniera — solo
+    indicativo, non una linea costruttiva reale. Nessun simbolo se tipo è "fissa"."""
+    if configurazione_anta.get("tipo") != "apribile":
         return ""
+
+    direzione = configurazione_anta.get("apertura", "destra")
 
     x, y = rettangolo_riferimento["x"], rettangolo_riferimento["y"]
     larghezza, altezza = rettangolo_riferimento["larghezza"], rettangolo_riferimento["altezza"]
 
-    if direzione == "Destra":
+    if direzione == "destra":
         apice = (x + larghezza, y + altezza / 2)
         angolo1 = (x, y)
         angolo2 = (x, y + altezza)
-    else:  # Sinistra
+    else:  # sinistra
         apice = (x, y + altezza / 2)
         angolo1 = (x + larghezza, y)
         angolo2 = (x + larghezza, y + altezza)
