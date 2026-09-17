@@ -1,7 +1,12 @@
 import streamlit as st
 from services.theme import apply_custom_theme
 from components.technical_drawing import genera_finestra
-from components.technical_drawing.geometry import larghezza_disponibile_per_ante, calcola_telaio
+from components.technical_drawing.geometry import (
+    larghezza_disponibile_per_ante,
+    calcola_telaio,
+    FRAME_THICKNESS_MM,
+    MULLION_THICKNESS_MM,
+)
 
 st.set_page_config(page_title="Editor Tecnico (Test)", page_icon="📐", layout="wide")
 apply_custom_theme()
@@ -24,15 +29,33 @@ with col_config:
         numero_ante = st.selectbox("Numero ante", [1, 2, 3, 4], index=1)
 
         st.markdown("---")
-        usa_larghezze_personalizzate = st.checkbox(
-            "Usa larghezze personalizzate per ogni anta",
-            help="Se disattivo, le ante vengono divise automaticamente in parti uguali (comportamento di base)."
-        )
+        usa_larghezze_personalizzate = st.checkbox("Aggiungi dimensioni diverse")
 
         if usa_larghezze_personalizzate:
             telaio = calcola_telaio(larghezza_mm, altezza_mm)
             disponibile = larghezza_disponibile_per_ante(telaio, numero_ante)
+            numero_montanti = numero_ante - 1
+
             st.caption(f"Spazio disponibile da distribuire tra le ante: **{disponibile:.0f} mm** (montanti già esclusi)")
+
+            with st.expander("ℹ️ Esempio di calcolo"):
+                righe_sottrazione = f"{larghezza_mm:.0f} mm  (larghezza infisso)\n"
+                righe_sottrazione += f"− {FRAME_THICKNESS_MM} mm  (telaio sinistro)\n"
+                righe_sottrazione += f"− {FRAME_THICKNESS_MM} mm  (telaio destro)\n"
+                if numero_montanti > 0:
+                    etichetta_montanti = "montante" if numero_montanti == 1 else "montanti"
+                    righe_sottrazione += f"− {numero_montanti * MULLION_THICKNESS_MM} mm  ({numero_montanti} {etichetta_montanti} × {MULLION_THICKNESS_MM}mm)\n"
+                righe_sottrazione += f"= {disponibile:.0f} mm disponibili per le ante"
+
+                st.markdown(
+                    "**Come vengono calcolate le larghezze?**\n\n"
+                    "La misura dell'infisso è la misura totale. Il sistema considera "
+                    "automaticamente lo spazio occupato dal telaio e dai montanti prima di "
+                    "calcolare lo spazio disponibile per le ante.\n\n"
+                    f"Per questo infisso ({larghezza_mm:.0f} × {altezza_mm:.0f} mm, {numero_ante} ant{'a' if numero_ante == 1 else 'e'}):"
+                )
+                st.code(righe_sottrazione, language=None)
+                st.caption("La somma delle larghezze che inserisci per le singole ante deve corrispondere esattamente a questo valore.")
 
         st.markdown("##### Configurazione ante")
 
