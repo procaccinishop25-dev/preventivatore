@@ -11,6 +11,7 @@ PALETTE = {
     "vetro_fill": "#D7EAF5",     # vetro, azzurro chiaro
     "vetro_stroke": "#A9CDE0",
     "quota": "#6B7570",
+    "maniglia": "#494D49",       # ferramenta, grigio scuro neutro, distinto dal colore anta
     "sfondo": "#FFFFFF",
 }
 
@@ -22,15 +23,31 @@ SPESSORE_SIMBOLO_APERTURA = 1.4
 
 LUNGHEZZA_TACCA_MM = 16
 
-# --- Maniglia: dimensioni in mm, coerenti con le altre costanti geometriche del modulo ---
-HANDLE_LENGTH_MM = 70
-HANDLE_WIDTH_MM = 18
-HANDLE_PIVOT_RADIUS_MM = 9
+# --- Maniglia tecnica: piastra + collo/perno + impugnatura verticale, dimensioni in mm ---
+HANDLE_PLATE_WIDTH_MM = 22
+HANDLE_PLATE_HEIGHT_MM = 110
+HANDLE_PLATE_RADIUS_MM = 5
+HANDLE_NECK_LENGTH_MM = 16
+HANDLE_NECK_WIDTH_MM = 10
+HANDLE_GRIP_LENGTH_MM = 80
+HANDLE_GRIP_WIDTH_MM = 13
+HANDLE_GRIP_RADIUS_MM = 6.5
+HANDLE_PIVOT_RADIUS_MM = 7
 
 
 def rettangolo(x, y, larghezza, altezza, stroke, stroke_width, fill="none"):
     return (
         f'<rect x="{x}" y="{y}" width="{larghezza}" height="{altezza}" '
+        f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />'
+    )
+
+
+def rettangolo_arrotondato(x, y, larghezza, altezza, raggio, stroke, stroke_width, fill="none"):
+    """Come rettangolo(), ma con angoli arrotondati — usato per elementi che
+    devono leggersi come componenti fisici (es. maniglia) invece che come
+    profili tecnici a spigolo vivo."""
+    return (
+        f'<rect x="{x}" y="{y}" width="{larghezza}" height="{altezza}" rx="{raggio}" ry="{raggio}" '
         f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}" />'
     )
 
@@ -151,35 +168,62 @@ def simbolo_apertura(rettangolo_riferimento, configurazione_anta):
 
 
 def disegna_maniglia(anta, apertura):
-    """Disegna una maniglia tecnica (leva + perno) sul bordo verticale dell'anta
-    indicato da `apertura`. La posizione è calcolata interamente a partire dal
-    rettangolo `anta` (x, y, larghezza, altezza) — nessuna coordinata assoluta
-    hardcoded — quindi resta corretta al variare di larghezza, altezza, numero
-    di ante e apertura. Nessuna maniglia se `apertura` non è "sinistra"/"destra"
-    (es. ante fisse, per cui il chiamante comunque non dovrebbe invocarla)."""
+    """Disegna una maniglia tecnica realistica — piastra verticale, collo/perno,
+    impugnatura verticale con estremità arrotondate — sul bordo dell'anta
+    indicato da `apertura`. Tutte le coordinate derivano dal rettangolo `anta`
+    (x, y, larghezza, altezza) e dalla direzione di apertura — nessuna
+    coordinata assoluta hardcoded — quindi resta corretta al variare di
+    larghezza, altezza, numero di ante e apertura. Nessuna maniglia se
+    `apertura` non è "sinistra"/"destra" (es. ante fisse, per cui il chiamante
+    comunque non dovrebbe invocarla). Stessa firma pubblica di prima."""
     if apertura not in ("sinistra", "destra"):
         return ""
 
     y_centro = anta["y"] + anta["altezza"] / 2
+    colore = PALETTE["maniglia"]
 
     if apertura == "sinistra":
         x_bordo = anta["x"]
-        x_leva_fine = x_bordo + HANDLE_LENGTH_MM
+        verso_interno = 1   # l'interno dell'anta è verso destra
     else:  # destra
         x_bordo = anta["x"] + anta["larghezza"]
-        x_leva_fine = x_bordo - HANDLE_LENGTH_MM
+        verso_interno = -1  # l'interno dell'anta è verso sinistra
 
-    svg = ""
-    # Leva: piccola barra che protrude dal bordo verso l'interno dell'anta
+    # 1. Piastra: rettangolo verticale arrotondato, appoggiata sul bordo dell'anta
+    if verso_interno == 1:
+        piastra_x = x_bordo
+    else:
+        piastra_x = x_bordo - HANDLE_PLATE_WIDTH_MM
+    piastra_y = y_centro - HANDLE_PLATE_HEIGHT_MM / 2
+
+    svg = rettangolo_arrotondato(
+        piastra_x, piastra_y, HANDLE_PLATE_WIDTH_MM, HANDLE_PLATE_HEIGHT_MM,
+        HANDLE_PLATE_RADIUS_MM, colore, SPESSORE_PROFILO_STROKE, fill=colore
+    )
+
+    # 2. Collo: piccolo profilo che protrude dalla piastra verso l'interno dell'anta
+    if verso_interno == 1:
+        collo_x = piastra_x + HANDLE_PLATE_WIDTH_MM
+    else:
+        collo_x = piastra_x - HANDLE_NECK_LENGTH_MM
+    collo_y = y_centro - HANDLE_NECK_WIDTH_MM / 2
+
     svg += rettangolo(
-        min(x_bordo, x_leva_fine), y_centro - HANDLE_WIDTH_MM / 2,
-        HANDLE_LENGTH_MM, HANDLE_WIDTH_MM,
-        PALETTE["anta"], SPESSORE_PROFILO_STROKE, fill=PALETTE["anta"]
+        collo_x, collo_y, HANDLE_NECK_LENGTH_MM, HANDLE_NECK_WIDTH_MM,
+        colore, SPESSORE_PROFILO_STROKE, fill=colore
     )
-    # Perno: punto di fissaggio sul bordo dell'anta
-    svg += cerchio(
-        x_bordo, y_centro, HANDLE_PIVOT_RADIUS_MM,
-        PALETTE["anta"], SPESSORE_PROFILO_STROKE, fill=PALETTE["sfondo"]
+
+    # 3. Impugnatura: leva verticale sottile con estremità arrotondate, centrata sul perno
+    perno_x = collo_x + HANDLE_NECK_LENGTH_MM if verso_interno == 1 else collo_x
+    impugnatura_x = perno_x - HANDLE_GRIP_WIDTH_MM / 2
+    impugnatura_y = y_centro - HANDLE_GRIP_LENGTH_MM / 2
+    svg += rettangolo_arrotondato(
+        impugnatura_x, impugnatura_y, HANDLE_GRIP_WIDTH_MM, HANDLE_GRIP_LENGTH_MM,
+        HANDLE_GRIP_RADIUS_MM, colore, SPESSORE_PROFILO_STROKE, fill=colore
     )
+
+    # 4. Perno: disegnato per ultimo, sopra l'impugnatura, per restare visibile
+    # come piccolo dettaglio della vite invece di finire coperto dalla leva.
+    svg += cerchio(perno_x, y_centro, HANDLE_PIVOT_RADIUS_MM * 0.6, colore, SPESSORE_PROFILO_STROKE, fill=PALETTE["sfondo"])
 
     return svg
