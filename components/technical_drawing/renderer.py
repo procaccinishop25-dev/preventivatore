@@ -7,7 +7,8 @@ from . import elements
 
 def genera_finestra(larghezza_mm, altezza_mm, configurazione_ante, larghezza_display=600):
     """`configurazione_ante` è una lista di dizionari, uno per anta:
-    {"tipo": "fissa"} oppure {"tipo": "apribile", "apertura": "sinistra"/"destra"}.
+    {"tipo": "fissa"} oppure {"tipo": "apribile", "apertura": "sinistra"/"destra"},
+    con eventuale chiave opzionale "larghezza_mm" per larghezze asimmetriche.
     Il numero di ante è dedotto dalla lunghezza di questa lista."""
     numero_ante_stimato = len(configurazione_ante) if isinstance(configurazione_ante, list) else 1
     configurazione_ante = geometry.normalizza_configurazione_ante(numero_ante_stimato, configurazione_ante)
@@ -16,7 +17,7 @@ def genera_finestra(larghezza_mm, altezza_mm, configurazione_ante, larghezza_dis
     larghezza_totale, altezza_totale = geometry.calcola_viewbox(larghezza_mm, altezza_mm)
     telaio = geometry.calcola_telaio(larghezza_mm, altezza_mm)
     area_interna_telaio = geometry.calcola_area_interna_telaio(telaio)
-    ante = geometry.calcola_ante(telaio, numero_ante)
+    ante = geometry.calcola_ante(telaio, configurazione_ante)
     montanti = geometry.calcola_montanti(telaio, ante)
 
     contenuto_svg = ""
