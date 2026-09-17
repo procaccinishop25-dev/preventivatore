@@ -63,26 +63,27 @@ def larghezza_disponibile_per_ante(telaio, numero_ante):
 
 
 def valida_larghezze_ante(area_interna_larghezza, larghezze_mm, numero_montanti, tolleranza_mm=0.5):
-    """Verifica che la somma delle larghezze anta + gli spazi dei montanti
-    corrisponda allo spazio orizzontale disponibile dentro il telaio, e che
+    """Verifica che la somma delle larghezze anta corrisponda allo spazio
+    disponibile per le ante (area interna del telaio, montanti già esclusi —
+    lo stesso valore restituito da larghezza_disponibile_per_ante()), e che
     ogni anta sia abbastanza larga da contenere profilo/battuta/fermavetro.
     Solleva ValueError con un messaggio preciso se qualcosa non torna."""
-    somma_larghezze = sum(larghezze_mm)
     spazio_montanti = numero_montanti * MULLION_THICKNESS_MM
-    totale_richiesto = somma_larghezze + spazio_montanti
-    differenza = area_interna_larghezza - totale_richiesto
+    spazio_disponibile_per_ante = area_interna_larghezza - spazio_montanti
+    somma_larghezze = sum(larghezze_mm)
+    differenza = spazio_disponibile_per_ante - somma_larghezze
 
     if abs(differenza) > tolleranza_mm:
         if differenza > 0:
             raise ValueError(
-                f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) più i montanti "
-                f"({spazio_montanti:.0f}mm) non riempiono lo spazio disponibile "
-                f"({area_interna_larghezza:.0f}mm). Mancano {differenza:.0f}mm."
+                f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) non riempiono lo spazio "
+                f"disponibile per le ante ({spazio_disponibile_per_ante:.0f}mm, montanti già esclusi). "
+                f"Mancano {differenza:.0f}mm."
             )
         raise ValueError(
-            f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) più i montanti "
-            f"({spazio_montanti:.0f}mm) superano lo spazio disponibile "
-            f"({area_interna_larghezza:.0f}mm) di {abs(differenza):.0f}mm."
+            f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) superano lo spazio "
+            f"disponibile per le ante ({spazio_disponibile_per_ante:.0f}mm, montanti già esclusi) "
+            f"di {abs(differenza):.0f}mm."
         )
 
     larghezza_minima_anta = 2 * (SASH_THICKNESS_MM + BATTUTA_MM + GLAZING_BEAD_MM) + 1
