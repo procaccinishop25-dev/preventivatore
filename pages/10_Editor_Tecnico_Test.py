@@ -1,198 +1,81 @@
-"""Calcoli geometrici puri per il disegno tecnico di infissi parametrici.
-Tutte le funzioni lavorano in millimetri (l'unità di misura reale dell'infisso).
-Nessuna funzione qui produce grafica: solo numeri e rettangoli logici."""
+import streamlit as st
+from services.theme import apply_custom_theme
+from components.technical_drawing import genera_finestra
+from components.technical_drawing.geometry import larghezza_disponibile_per_ante, calcola_telaio
 
-FRAME_THICKNESS_MM = 60      # spessore della fascia del telaio esterno
-SASH_THICKNESS_MM = 50       # spessore della fascia propria dell'anta (profilo mobile)
+st.set_page_config(page_title="Editor Tecnico (Test)", page_icon="📐", layout="wide")
+apply_custom_theme()
 
-# --- Battuta: parametro iniziale del modello grafico, non una misura costruttiva
-# universale. Rappresenta simbolicamente la zona di tenuta/incastro tra anta e
-# fermavetro — pensata per essere ritoccata facilmente in futuro. ---
-BATTUTA_MM = 8
+st.markdown(
+    "<div class='page-header'><h1>Editor Tecnico — Prototipo</h1>"
+    "<p>Pagina di test isolata per lo sviluppo del motore di disegno tecnico parametrico. "
+    "Non collegata al resto dell'applicazione.</p></div>",
+    unsafe_allow_html=True
+)
 
-GLAZING_BEAD_MM = 15         # spessore della fascia del fermavetro, ora effettivamente disegnata
-MULLION_THICKNESS_MM = 40
+col_config, col_anteprima = st.columns([1, 2])
 
-MARGIN_LEFT_MM = 160
-MARGIN_RIGHT_MM = 40
-MARGIN_TOP_MM = 40
-MARGIN_BOTTOM_MM = 140
+with col_config:
+    with st.container(border=True):
+        st.markdown("#### Configurazione")
 
-QUOTA_OFFSET_MM = 60  # distanza tra il disegno e la linea di quota
+        larghezza_mm = st.number_input("Larghezza infisso (mm)", min_value=400, max_value=4000, value=1200, step=10)
+        altezza_mm = st.number_input("Altezza infisso (mm)", min_value=400, max_value=4000, value=1500, step=10)
+        numero_ante = st.selectbox("Numero ante", [1, 2, 3, 4], index=1)
 
-
-def _inset(rettangolo, quantita):
-    """Restituisce un rettangolo più interno di `quantita` mm su ogni lato."""
-    return {
-        "x": rettangolo["x"] + quantita,
-        "y": rettangolo["y"] + quantita,
-        "larghezza": rettangolo["larghezza"] - 2 * quantita,
-        "altezza": rettangolo["altezza"] - 2 * quantita,
-    }
-
-
-def calcola_viewbox(larghezza_mm, altezza_mm):
-    """Dimensioni totali del 'foglio' di disegno, infisso + margini per le quote."""
-    larghezza_totale = larghezza_mm + MARGIN_LEFT_MM + MARGIN_RIGHT_MM
-    altezza_totale = altezza_mm + MARGIN_TOP_MM + MARGIN_BOTTOM_MM
-    return larghezza_totale, altezza_totale
-
-
-def calcola_telaio(larghezza_mm, altezza_mm):
-    """Rettangolo del telaio esterno, posizionato dentro il foglio tenendo conto dei margini."""
-    return {
-        "x": MARGIN_LEFT_MM,
-        "y": MARGIN_TOP_MM,
-        "larghezza": larghezza_mm,
-        "altezza": altezza_mm,
-    }
-
-
-def calcola_area_interna_telaio(telaio):
-    """Area utile dentro la fascia del telaio, dove vivono le ante."""
-    return _inset(telaio, FRAME_THICKNESS_MM)
-
-
-def larghezza_disponibile_per_ante(telaio, numero_ante):
-    """Calcola quanto spazio orizzontale è disponibile per distribuire tra le ante,
-    al netto dei montanti necessari per il numero di ante indicato. Utile per una
-    futura UI che mostri all'utente quanto spazio ha già allocato."""
-    area_interna = calcola_area_interna_telaio(telaio)
-    numero_montanti = numero_ante - 1
-    return area_interna["larghezza"] - numero_montanti * MULLION_THICKNESS_MM
-
-
-def valida_larghezze_ante(area_interna_larghezza, larghezze_mm, numero_montanti, tolleranza_mm=0.5):
-    """Verifica che la somma delle larghezze anta corrisponda allo spazio
-    disponibile per le ante (area interna del telaio, montanti già esclusi —
-    lo stesso valore restituito da larghezza_disponibile_per_ante()), e che
-    ogni anta sia abbastanza larga da contenere profilo/battuta/fermavetro.
-    Solleva ValueError con un messaggio preciso se qualcosa non torna."""
-    spazio_montanti = numero_montanti * MULLION_THICKNESS_MM
-    spazio_disponibile_per_ante = area_interna_larghezza - spazio_montanti
-    somma_larghezze = sum(larghezze_mm)
-    differenza = spazio_disponibile_per_ante - somma_larghezze
-
-    if abs(differenza) > tolleranza_mm:
-        if differenza > 0:
-            raise ValueError(
-                f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) non riempiono lo spazio "
-                f"disponibile per le ante ({spazio_disponibile_per_ante:.0f}mm, montanti già esclusi). "
-                f"Mancano {differenza:.0f}mm."
-            )
-        raise ValueError(
-            f"Le larghezze delle ante (totale {somma_larghezze:.0f}mm) superano lo spazio "
-            f"disponibile per le ante ({spazio_disponibile_per_ante:.0f}mm, montanti già esclusi) "
-            f"di {abs(differenza):.0f}mm."
+        st.markdown("---")
+        usa_larghezze_personalizzate = st.checkbox(
+            "Usa larghezze personalizzate per ogni anta",
+            help="Se disattivo, le ante vengono divise automaticamente in parti uguali (comportamento di base)."
         )
 
-    larghezza_minima_anta = 2 * (SASH_THICKNESS_MM + BATTUTA_MM + GLAZING_BEAD_MM) + 1
-    for indice, larghezza in enumerate(larghezze_mm, start=1):
-        if larghezza < larghezza_minima_anta:
-            raise ValueError(
-                f"L'anta {indice} ha una larghezza di {larghezza:.0f}mm, troppo stretta per "
-                f"contenere profilo, battuta e fermavetro (minimo {larghezza_minima_anta:.0f}mm)."
-            )
+        if usa_larghezze_personalizzate:
+            telaio = calcola_telaio(larghezza_mm, altezza_mm)
+            disponibile = larghezza_disponibile_per_ante(telaio, numero_ante)
+            st.caption(f"Spazio disponibile da distribuire tra le ante: **{disponibile:.0f} mm** (montanti già esclusi)")
 
+        st.markdown("##### Configurazione ante")
 
-def calcola_ante(telaio, configurazione_ante):
-    """Divide l'area interna del telaio in una sezione per ogni anta, lasciando
-    spazio per i montanti centrali. Restituisce una lista di rettangoli anta
-    (il rettangolo ESTERNO di ogni anta, comprensivo del proprio profilo).
+        configurazione_ante = []
+        somma_larghezze_inserite = 0
 
-    `configurazione_ante` è la lista di dizionari normalizzata (una voce per
-    anta). Se NESSUNA voce specifica "larghezza_mm", le ante vengono divise in
-    parti uguali (comportamento storico, retrocompatibile). Se TUTTE le voci
-    specificano "larghezza_mm", vengono usate quelle larghezze esatte, previa
-    validazione. Un mix (solo alcune voci con larghezza_mm) è un errore."""
-    area_interna = calcola_area_interna_telaio(telaio)
-    numero_ante = len(configurazione_ante)
-    numero_montanti = numero_ante - 1
+        for i in range(1, numero_ante + 1):
+            col_tipo, col_apertura = st.columns(2)
+            with col_tipo:
+                tipo_label = st.selectbox(
+                    f"Anta {i} — Tipo", ["Fissa", "Apribile"],
+                    index=1, key=f"tipo_anta_{i}"
+                )
 
-    larghezze_specificate = [c.get("larghezza_mm") for c in configurazione_ante]
-    numero_specificate = sum(1 for l in larghezze_specificate if l is not None)
+            voce_anta = {}
+            if tipo_label == "Apribile":
+                with col_apertura:
+                    apertura_label = st.selectbox(
+                        f"Anta {i} — Apertura", ["Sinistra", "Destra"],
+                        index=1, key=f"apertura_anta_{i}"
+                    )
+                voce_anta = {"tipo": "apribile", "apertura": apertura_label.lower()}
+            else:
+                voce_anta = {"tipo": "fissa"}
 
-    if numero_specificate == 0:
-        larghezza_totale_montanti = numero_montanti * MULLION_THICKNESS_MM
-        larghezza_anta = (area_interna["larghezza"] - larghezza_totale_montanti) / numero_ante
-        larghezze_ante = [larghezza_anta] * numero_ante
-    elif numero_specificate == numero_ante:
-        larghezze_ante = larghezze_specificate
-        valida_larghezze_ante(area_interna["larghezza"], larghezze_ante, numero_montanti)
-    else:
-        raise ValueError(
-            "Specifica la larghezza per tutte le ante, oppure per nessuna. "
-            f"Larghezza specificata per {numero_specificate} ante su {numero_ante}."
-        )
+            if usa_larghezze_personalizzate:
+                larghezza_anta_mm = st.number_input(
+                    f"Anta {i} — Larghezza (mm)", min_value=50, max_value=3000,
+                    value=300, step=10, key=f"larghezza_anta_{i}"
+                )
+                voce_anta["larghezza_mm"] = larghezza_anta_mm
+                somma_larghezze_inserite += larghezza_anta_mm
 
-    ante = []
-    x_corrente = area_interna["x"]
-    for larghezza_anta in larghezze_ante:
-        ante.append({
-            "x": x_corrente,
-            "y": area_interna["y"],
-            "larghezza": larghezza_anta,
-            "altezza": area_interna["altezza"],
-        })
-        x_corrente += larghezza_anta + MULLION_THICKNESS_MM
+            configurazione_ante.append(voce_anta)
 
-    return ante
+        if usa_larghezze_personalizzate:
+            st.caption(f"Totale larghezze inserite (senza montanti): **{somma_larghezze_inserite:.0f} mm**")
 
-
-def calcola_montanti(telaio, ante):
-    """Rettangoli pieni dei montanti (divisori centrali) tra ogni coppia di ante adiacenti."""
-    area_interna = calcola_area_interna_telaio(telaio)
-    montanti = []
-    for i in range(len(ante) - 1):
-        anta_corrente = ante[i]
-        anta_successiva = ante[i + 1]
-        x_montante = anta_corrente["x"] + anta_corrente["larghezza"]
-        montanti.append({
-            "x": x_montante,
-            "y": area_interna["y"],
-            "larghezza": anta_successiva["x"] - x_montante,
-            "altezza": area_interna["altezza"],
-        })
-    return montanti
-
-
-def calcola_battuta_anta(anta):
-    """Rettangolo interno dell'anta, dopo il proprio profilo (spessore SASH_THICKNESS_MM).
-    Rappresenta il confine tra la fascia dell'anta e la zona di battuta."""
-    return _inset(anta, SASH_THICKNESS_MM)
-
-
-def calcola_zona_fermavetro(battuta):
-    """Rettangolo interno alla battuta, dopo la zona di battuta (spessore BATTUTA_MM).
-    Rappresenta il confine dove inizia la fascia del fermavetro."""
-    return _inset(battuta, BATTUTA_MM)
-
-
-def calcola_vetro(zona_fermavetro):
-    """Rettangolo del vetro visibile, dopo il fermavetro rispetto alla zona di fermavetro."""
-    return _inset(zona_fermavetro, GLAZING_BEAD_MM)
-
-
-def normalizza_configurazione_ante(numero_ante, configurazione):
-    """Restituisce sempre una lista di dizionari, uno per anta, nel formato:
-    {"tipo": "fissa"} oppure {"tipo": "apribile", "apertura": "sinistra"/"destra"},
-    con eventuale chiave opzionale "larghezza_mm".
-
-    Accetta due formati in ingresso:
-
-    - Nuovo formato (preferito): `configurazione` è già una lista di dizionari
-      in questo formato — viene restituita così com'è.
-    - Vecchio formato (retrocompatibilità): `configurazione` è una singola
-      stringa globale ("Fissa", "Sinistra", "Destra", case-insensitive) —
-      viene convertita e ripetuta per `numero_ante` volte, senza "larghezza_mm"
-      (quindi il chiamante otterrà sempre la divisione equa storica)."""
-    if isinstance(configurazione, list):
-        return configurazione
-
-    valore = (configurazione or "").strip().lower()
-    if valore in ("", "fissa"):
-        singola = {"tipo": "fissa"}
-    else:
-        singola = {"tipo": "apribile", "apertura": valore}
-
-    return [dict(singola) for _ in range(numero_ante)]
+with col_anteprima:
+    with st.container(border=True):
+        st.markdown("#### Anteprima disegno tecnico")
+        try:
+            svg = genera_finestra(larghezza_mm, altezza_mm, configurazione_ante)
+            st.markdown(svg, unsafe_allow_html=True)
+        except ValueError as errore:
+            st.error(str(errore))
